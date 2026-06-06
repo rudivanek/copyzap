@@ -1074,6 +1074,16 @@ export function useGeneration(
         }
       }
 
+      // Generate absolute score for modified content
+      try {
+        addProgressMessage('Generating absolute score for modified content...');
+        const absScore = await generateAbsoluteScore(modifiedContent, currentUser, actualSessionId);
+        newItem.absoluteScore = absScore;
+        addProgressMessage('Absolute score generated for modified content.');
+      } catch (absError) {
+        console.error('Error generating absolute score for modified content:', absError);
+      }
+
       // Add the new item to the generated versions
       setFormState(prev => ({
         ...prev,
