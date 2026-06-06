@@ -522,10 +522,10 @@ const Dashboard: React.FC<{ userId: string; onLogout: () => void }> = ({ userId,
     });
   }, [copySessions, templates, creditsAggregatedStats, savedOutputs, isAdmin]);
 
-  // Load data on component mount and whenever the user navigates to this page
+  // Load data on component mount
   useEffect(() => {
     loadUserData();
-  }, [loadUserData, location.key]);
+  }, [loadUserData]);
 
   // Separate effect for background retry to avoid constant re-initialization
   useEffect(() => {
