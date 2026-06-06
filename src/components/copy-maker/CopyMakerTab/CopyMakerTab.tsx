@@ -1765,6 +1765,16 @@ const CopyMakerTab: React.FC<CopyMakerTabProps> = ({
           // Don't show error to user, blend was successful even if analyses failed
         }
       }
+      // Generate absolute score for blended content
+try {
+  const { generateAbsoluteScore } = await import('../../../services/api/absoluteScoring');
+  const { saveAbsoluteScore } = await import('../../../services/supabaseClient');
+  const absScore = await generateAbsoluteScore(blendedItem.content, currentUser, formState.sessionId);
+  blendedItem.absoluteScore = absScore;
+  if (currentUser?.id) saveAbsoluteScore(currentUser.id, blendedItem.id, absScore, formState.sessionId);
+} catch {
+  // non-critical — proceed without absolute score
+}
 
       // Now add the complete blended item (with all analyses) to state in one go
       setFormState(prev => ({
