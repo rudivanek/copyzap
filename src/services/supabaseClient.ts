@@ -987,7 +987,6 @@ export const getUserCopySessions = async (
       .in('scope_key', ['copy-maker', 'quick-polish', 'copy-snap']); // Show all app sessions
 
     const result = await query
-      .order('last_accessed_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit);
@@ -1238,8 +1237,11 @@ export const getUserSavedOutputsMeta = async (
       .select('id, user_id, title, description, tags, session_id, saved_mode, created_at, updated_at, is_favorite, last_accessed_at')
       .eq('user_id', userId);
 
+    if (cursor) {
+      query = query.or(`created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`);
+    }
+
     const result = await query
-      .order('last_accessed_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
       .limit(limit);
