@@ -128,3 +128,75 @@ Return ONLY the JSON. No markdown. No explanation outside the JSON.`;
     generatedAt: new Date().toISOString(),
   };
 }
+/**
+ * Compile Best Elements into a new cohesive output version.
+ *
+ * Takes the identified best elements and the full source versions,
+ * and asks the AI to assemble them into one flowing final piece.
+ */
+export async function compileBestElements(
+  elements: BestElement[],
+  versions: GeneratedContentItem[],
+  formState: any,
+  currentUser: any,
+  sessionId?: string
+): Promise<string> {
+  // Build element-by-element instructions with full source content
+  const elementInstructions = elements.map(el => {
+    const sourceVersion = versions.find(v => v.id === el.versionId);
+    const sourceContent = sourceVersion
+      ? truncateContent(sourceVersion.content, 800)
+      : '(source not found)';
+    return `## ${el.dimension}
+Use from: "${el.versionName}"
+Why: ${el.reason}
+Excerpt to preserve: "${el.excerpt}"
+Full source section:
+${sourceContent}`;
+  }).join('\n\n---\n\n');
+
+  const language = formState?.language || 'English';
+  const tone = formState?.tone || 'Professional';
+  const outputType = formState?.outputType || 'marketing copy';
+
+  const systemPrompt = `You are an expert copywriter specializing in ${language} marketing copy. You assemble the best elements from multiple versions into one cohesive, polished final piece.
+
+Your output is ONLY the final copy — no explanations, no labels, no JSON. Just the finished marketing copy ready to use.`;
+
+  const userPrompt = `Assemble a final, cohesive version of this ${outputType} by combining the best elements identified below.
+
+LANGUAGE: ${language}
+TONE: ${tone}
+
+BEST ELEMENTS TO COMBINE:
+
+${elementInstructions}
+
+INSTRUCTIONS:
+- Use each identified best element as the foundation for its section
+- Preserve the key phrases and excerpts identified above
+- Ensure smooth transitions between sections so the final piece flows naturally
+- Maintain consistent tone throughout (${tone})
+- Write in ${language}
+- Do NOT add labels or section headers that weren't in the originals unless they improve flow
+- The result should feel like one unified piece, not a patchwork
+
+Write the final compiled version now:`;
+
+  const data = await makeApiRequestWithFallback(
+    SCORING_MODEL,
+    [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    0.4,
+    2500
+  );
+
+  const content = data.choices?.[0]?.message?.content || '';
+  if (!content.trim()) {
+    throw new Error('AI returned empty content for compiled version.');
+  }
+
+  return content.trim();
+}
