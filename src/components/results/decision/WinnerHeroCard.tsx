@@ -4,13 +4,6 @@ import { getScoreTextClass } from '../../../utils/scoreColors';
 import { AbsoluteScoreBreakdown } from '../../../types';
 import { getComparisonDelta } from '../../../utils/comparisonDelta';
 
-function getAbsoluteScoreColor(total: number): string {
-  if (total <= 65) return '#dc2626';
-  if (total <= 75) return '#d97706';
-  if (total <= 85) return '#16a34a';
-  return '#1d4ed8';
-}
-
 interface WinnerRow {
   versionId: string;
   optionLabel: string;
@@ -106,10 +99,6 @@ export const WinnerHeroCard: React.FC<WinnerHeroCardProps> = ({
     ? getComparisonDelta(winnerRow.finalScore, baselineScore)
     : null;
 
-  const absDelta = (winnerRow.absoluteScore != null && baselineAbsTotal != null)
-    ? getComparisonDelta(winnerRow.absoluteScore.total, baselineAbsTotal)
-    : null;
-
   const quickWhyBullets = winnerBreakdown?.whatItDoesBetter?.slice(0, 3).map(item => {
     return item.replace(/^(Compared to|vs\.?)\s+[^,]+,\s*/i, '');
   }) ?? [];
@@ -138,7 +127,7 @@ export const WinnerHeroCard: React.FC<WinnerHeroCardProps> = ({
           </span>
         </div>
 
-        {/* Title + Score columns */}
+        {/* Title + Score */}
         <div className="flex items-start justify-between gap-4 mb-2">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-extrabold text-gray-900 dark:text-white leading-tight">
@@ -151,37 +140,18 @@ export const WinnerHeroCard: React.FC<WinnerHeroCardProps> = ({
             )}
           </div>
 
-          <div className="flex items-start gap-5 flex-shrink-0">
-            {/* Session column */}
-            <div className="flex flex-col items-end gap-1">
-              <span className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">Session</span>
-              <span className={`text-2xl font-black tabular-nums leading-none ${getScoreTextClass(winnerRow.finalScore)}`}>
-                {winnerRow.finalScore}
+          {/* Session score only */}
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <span className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">Session</span>
+            <span className={`text-2xl font-black tabular-nums leading-none ${getScoreTextClass(winnerRow.finalScore)}`}>
+              {winnerRow.finalScore}
+            </span>
+            {sessionDelta && !sessionDelta.neutral ? (
+              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap ${deltaBadgeClass(sessionDelta.positive)}`}>
+                {sessionDelta.label}
               </span>
-              {sessionDelta && !sessionDelta.neutral ? (
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap ${deltaBadgeClass(sessionDelta.positive)}`}>
-                  {sessionDelta.label}
-                </span>
-              ) : (
-                <span className="text-[10px] text-gray-300 dark:text-gray-700">—</span>
-              )}
-            </div>
-
-            {/* Absolute column */}
-            {winnerRow.absoluteScore && (
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">Absolute</span>
-                <span className="text-2xl font-black tabular-nums leading-none" style={{ color: getAbsoluteScoreColor(winnerRow.absoluteScore.total) }}>
-                  {winnerRow.absoluteScore.total}
-                </span>
-                {absDelta && !absDelta.neutral ? (
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap ${deltaBadgeClass(absDelta.positive)}`}>
-                    {absDelta.label}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-gray-300 dark:text-gray-700">—</span>
-                )}
-              </div>
+            ) : (
+              <span className="text-[10px] text-gray-300 dark:text-gray-700">—</span>
             )}
           </div>
         </div>
