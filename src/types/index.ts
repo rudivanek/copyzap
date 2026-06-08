@@ -402,6 +402,7 @@ export interface CopyResult {
   // Deep analysis (narrative guidance, separate from scoring)
   versionDeepAnalysis?: Record<string, VersionDeepAnalysis>; // Per-version deep analysis cache
   comparisonDeepAnalysisMeta?: ComparisonDeepAnalysisMeta; // Overall verdict and metadata
+  bestElementsResult?: import('../services/api/bestElements').BestElementsResult;
 }
 
 // Prefill interface for form prefills
