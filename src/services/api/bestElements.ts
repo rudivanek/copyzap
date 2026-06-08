@@ -5,8 +5,10 @@
  * from each version across key copywriting dimensions:
  * headline, hook, testimonials, explanation, CTA, credibility block.
  *
- * This is a user-triggered call (via sidebar button), not automatic.
- * Requires at least 3 versions with a comparison result already present.
+ * Compile strategy: CODE-LEVEL EXTRACTION, not AI rewriting.
+ * The AI only identifies which excerpt belongs to which section.
+ * The code extracts the actual text blocks from source versions.
+ * A small AI call writes only the transition sentences between blocks.
  */
 
 import { GeneratedContentItem } from '../../types';
@@ -24,13 +26,84 @@ export interface BestElement {
 
 export interface BestElementsResult {
   elements: BestElement[];
-  assemblyNote: string;     // Short paragraph telling the user how to combine them
+  assemblyNote: string;
   generatedAt: string;
 }
 
 function truncateContent(content: any, maxChars = 1200): string {
   const text = typeof content === 'string' ? content : JSON.stringify(content);
   return text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
+}
+
+/**
+ * Split content into sections by double newline or markdown heading.
+ * Returns an array of blocks (each block is a heading + its paragraphs).
+ */
+function splitIntoSections(content: string): string[] {
+  if (!content) return [];
+
+  // Split on markdown headings (# ## ###) or double newlines
+  const lines = content.split('\n');
+  const sections: string[] = [];
+  let currentSection: string[] = [];
+
+  for (const line of lines) {
+    const isHeading = /^#{1,3}\s/.test(line.trim());
+    if (isHeading && currentSection.length > 0) {
+      const block = currentSection.join('\n').trim();
+      if (block) sections.push(block);
+      currentSection = [line];
+    } else {
+      currentSection.push(line);
+    }
+  }
+
+  // Push last section
+  if (currentSection.length > 0) {
+    const block = currentSection.join('\n').trim();
+    if (block) sections.push(block);
+  }
+
+  // If no headings found, split by double newline paragraphs
+  if (sections.length <= 1) {
+    return content
+      .split(/\n\n+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 20);
+  }
+
+  return sections;
+}
+
+/**
+ * Find the section in a version's content that best matches an excerpt.
+ * Returns the full section text, or the excerpt itself if no match found.
+ */
+function extractMatchingSection(content: string, excerpt: string): string {
+  if (!content || !excerpt) return excerpt || '';
+
+  const sections = splitIntoSections(content);
+  if (sections.length === 0) return excerpt;
+
+  // Normalize for comparison
+  const normalizedExcerpt = excerpt.toLowerCase().replace(/[""«»]/g, '"').trim();
+
+  // Try exact substring match first
+  for (const section of sections) {
+    const normalizedSection = section.toLowerCase().replace(/[""«»]/g, '"');
+    // Check if excerpt words appear in this section
+    const excerptWords = normalizedExcerpt
+      .split(/\s+/)
+      .filter(w => w.length > 4)
+      .slice(0, 5); // first 5 meaningful words
+    const matchCount = excerptWords.filter(w => normalizedSection.includes(w)).length;
+    if (matchCount >= Math.min(3, excerptWords.length)) {
+      return section;
+    }
+  }
+
+  // Fallback: return the largest section (most content)
+  return sections.reduce((longest, s) => s.length > longest.length ? s : longest, sections[0]);
 }
 
 export async function generateBestElements(
@@ -49,7 +122,7 @@ export async function generateBestElements(
     const score = row?.finalScore ?? row?.score ?? '—';
     const name = v.sourceDisplayName || v.type || 'Version';
     const content = truncateContent(v.content, 1000);
-    return `--- VERSION: "${name}" (Score: ${score}/100) ---\n${content}`;
+    return `--- VERSION: "${name}" (Score: ${score}/100) id:${v.id} ---\n${content}`;
   }).join('\n\n');
 
   const systemPrompt = `You are a senior copywriter and content strategist. You analyze multiple versions of marketing copy and identify the single strongest element in each key dimension.
@@ -60,7 +133,10 @@ You return ONLY valid JSON — no markdown fences, no explanation text outside t
 
 ${versionSummaries}
 
-For each dimension below, identify which version has the strongest execution of that element. Extract a short representative excerpt (max 30 words) and give one concise reason why it wins.
+For each dimension below, identify which version has the strongest execution of that element.
+Extract a short representative excerpt (max 30 words) — this MUST be the actual text from that version, word for word.
+Give one concise reason why it wins.
+Include the exact versionId from the "id:" tag shown above.
 
 Dimensions to evaluate:
 1. Headline / Opening Hook — the first line or headline that grabs attention
@@ -76,8 +152,8 @@ Return this exact JSON structure:
     {
       "dimension": "Headline / Opening Hook",
       "versionName": "exact version name here",
-      "versionId": "exact version id here",
-      "excerpt": "short excerpt from that version (max 30 words)",
+      "versionId": "exact versionId from the id: tag",
+      "excerpt": "actual verbatim text from that version (max 30 words)",
       "reason": "one sentence explaining why this element wins"
     }
   ],
@@ -108,11 +184,16 @@ Return ONLY the JSON. No markdown. No explanation outside the JSON.`;
 
   // Attach versionId by matching versionName if AI didn't fill it correctly
   const elements: BestElement[] = (parsed.elements || []).map((el: any) => {
-    const matched = versions.find(v =>
-      (v.sourceDisplayName || v.type || '').toLowerCase().includes(
-        (el.versionName || '').toLowerCase().slice(0, 20)
-      )
-    );
+    // First try direct ID match
+    let matched = versions.find(v => v.id === el.versionId);
+    // Fallback: match by name
+    if (!matched) {
+      matched = versions.find(v =>
+        (v.sourceDisplayName || v.type || '').toLowerCase().includes(
+          (el.versionName || '').toLowerCase().slice(0, 20)
+        )
+      );
+    }
     return {
       dimension: el.dimension || '—',
       versionName: el.versionName || '—',
@@ -128,11 +209,17 @@ Return ONLY the JSON. No markdown. No explanation outside the JSON.`;
     generatedAt: new Date().toISOString(),
   };
 }
+
 /**
- * Compile Best Elements into a new cohesive output version.
+ * Compile Best Elements — CODE-LEVEL EXTRACTION approach.
  *
- * Takes the identified best elements and the full source versions,
- * and asks the AI to assemble them into one flowing final piece.
+ * Step 1: For each element, find the matching section in the source version using
+ *         text matching (no AI rewriting).
+ * Step 2: Concatenate the extracted blocks in order.
+ * Step 3: One small AI call to write smooth 1-sentence transitions between blocks.
+ *
+ * The AI never touches the actual copy content — only writes transitions.
+ * This guarantees headings, phone numbers, testimonials, and all details are preserved.
  */
 export async function compileBestElements(
   elements: BestElement[],
@@ -143,81 +230,87 @@ export async function compileBestElements(
 ): Promise<string> {
   const language = formState?.language || 'English';
   const tone = formState?.tone || 'Professional';
-  const outputType = formState?.outputType || 'marketing copy';
 
-  // Find the longest source version to use as length reference
-  const longestVersion = versions.reduce((longest, v) => {
-    const len = typeof v.content === 'string' ? v.content.length : JSON.stringify(v.content).length;
-    const longestLen = typeof longest?.content === 'string' ? longest.content.length : JSON.stringify(longest?.content || '').length;
-    return len > longestLen ? v : longest;
-  }, versions[0]);
-  const referenceLength = typeof longestVersion?.content === 'string'
-    ? longestVersion.content.length
-    : 800;
+  // ── STEP 1: Extract the actual section from each source version ──────────────
+  const extractedBlocks: Array<{ dimension: string; block: string; versionName: string }> = [];
 
-  // Build full source versions — NO truncation
-  const uniqueVersionIds = [...new Set(elements.map(el => el.versionId).filter(Boolean))];
-  const fullVersionContents = uniqueVersionIds.map(vid => {
-    const v = versions.find(ver => ver.id === vid);
-    if (!v) return '';
-    const name = v.sourceDisplayName || v.type || 'Version';
-    const content = typeof v.content === 'string' ? v.content : JSON.stringify(v.content);
-    return `=== FULL VERSION: "${name}" ===\n${content}`;
-  }).filter(Boolean).join('\n\n');
+  for (const el of elements) {
+    const sourceVersion = versions.find(v => v.id === el.versionId);
+    if (!sourceVersion) continue;
 
-  // Element instructions
-  const elementInstructions = elements.map((el, idx) => {
-    return `${idx + 1}. ${el.dimension}\n   → Take from: "${el.versionName}"\n   → Key excerpt to preserve: "${el.excerpt}"\n   → Why it wins: ${el.reason}`;
-  }).join('\n\n');
+    const content = typeof sourceVersion.content === 'string'
+      ? sourceVersion.content
+      : JSON.stringify(sourceVersion.content);
 
-  const targetWords = Math.round(referenceLength / 5);
-
-  const systemPrompt = `You are an expert ${language} copywriter. Your job is to compile the best sections from multiple marketing copy versions into one final, complete, production-ready piece.
-
-CRITICAL RULES:
-- Do NOT summarize or shorten anything — transplant the actual full sections from the source versions
-- The output must be approximately ${targetWords} words (match the longest source version)
-- Preserve all specific details: names, phone numbers, addresses, testimonial quotes verbatim, session counts, credentials
-- Your output is ONLY the final copy — no explanations, no meta-commentary, no JSON`;
-
-  const userPrompt = `Compile a final ${outputType} in ${language} by transplanting the best section from each source version.
-
-TONE: ${tone}
-LANGUAGE: ${language}
-TARGET LENGTH: approximately ${targetWords} words — this is a full-length piece, not a summary
-
-BEST ELEMENTS TO USE:
-
-${elementInstructions}
-
-SOURCE VERSIONS (transplant directly from these):
-
-${fullVersionContents}
-
-COMPILATION INSTRUCTIONS:
-1. For each of the 6 dimensions above, find that full section in the named source version
-2. Transplant it into the compiled output — use the actual text, do not rewrite or shorten
-3. Only lightly edit at section boundaries to ensure smooth transitions
-4. Keep ALL specific details: testimonials word-for-word, phone numbers, addresses, names, session durations, credentials
-5. The final result must be comprehensive and complete — approximately ${targetWords} words
-6. Maintain consistent ${tone} tone throughout in ${language}
-
-Write the complete compiled version now:`;
-
-  const data = await makeApiRequestWithFallback(
-    SCORING_MODEL,
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    0.3,
-    4000
-  );
-
-  const content = data.choices?.[0]?.message?.content || '';
-  if (!content.trim()) {
-    throw new Error('AI returned empty content for compiled version.');
+    const extractedSection = extractMatchingSection(content, el.excerpt);
+    extractedBlocks.push({
+      dimension: el.dimension,
+      block: extractedSection,
+      versionName: el.versionName,
+    });
   }
 
-  return content.trim();
+  if (extractedBlocks.length === 0) {
+    throw new Error('Could not extract any sections from source versions.');
+  }
+
+  // ── STEP 2: Concatenate blocks with placeholder transitions ──────────────────
+  // We'll ask the AI to only generate the transition text, not rewrite anything
+  const blocksForAI = extractedBlocks.map((b, idx) => ({
+    index: idx,
+    dimension: b.dimension,
+    content: b.block,
+  }));
+
+  const systemPrompt = `You are an expert ${language} copywriter. You receive a list of extracted copy sections that must appear VERBATIM in the final output.
+
+Your ONLY job is to write a SHORT transition sentence (max 15 words) between each pair of sections where needed.
+You must NEVER rewrite, summarize, or alter the provided sections.
+Return ONLY valid JSON.`;
+
+  const userPrompt = `These are ${blocksForAI.length} extracted sections that will be assembled in order. Write a brief transition sentence (max 15 words, in ${language}) to place BETWEEN each consecutive pair where the topic shift is abrupt. If two sections flow naturally, return an empty string for that transition.
+
+Sections:
+${blocksForAI.map(b => `[${b.index}] ${b.dimension}:\n${b.content.slice(0, 200)}…`).join('\n\n')}
+
+Return this JSON:
+{
+  "transitions": ["transition after block 0", "transition after block 1", "transition after block 2", "transition after block 3", "transition after block 4"]
+}
+
+Transitions must be in ${language}, tone: ${tone}. Use empty string "" if no transition needed.
+Return ONLY JSON.`;
+
+  let transitions: string[] = new Array(extractedBlocks.length - 1).fill('');
+
+  try {
+    const data = await makeApiRequestWithFallback(
+      SCORING_MODEL,
+      [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      0.3,
+      500
+    );
+    const raw = data.choices?.[0]?.message?.content || '';
+    const cleaned = cleanJsonResponse(raw);
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed.transitions)) {
+      transitions = parsed.transitions;
+    }
+  } catch {
+    // Non-critical — proceed without transitions
+  }
+
+  // ── STEP 3: Assemble the final compiled text ─────────────────────────────────
+  const parts: string[] = [];
+  for (let i = 0; i < extractedBlocks.length; i++) {
+    parts.push(extractedBlocks[i].block);
+    if (i < extractedBlocks.length - 1 && transitions[i]?.trim()) {
+      parts.push(transitions[i].trim());
+    }
+  }
+
+  return parts.join('\n\n');
 }
