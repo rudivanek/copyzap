@@ -10,14 +10,6 @@ import { SubScoreChips } from '../SubScoreChips';
 import { calculateMultiScoreDisplay } from '../../../utils/multiScoreDisplay';
 import { DecisionBadge, getBadgeStyles, getBestOverallExplanation, getWinnerSummary } from '../../../utils/decisionBadges';
 import { WinnerFactors, WinnerBreakdown, DecisionLayer } from '../../../services/api/comprehensiveScoring';
-import AbsoluteScoreBadge from '../AbsoluteScoreBadge';
-
-function getAbsoluteScoreColor(total: number): string {
-  if (total <= 65) return '#dc2626';
-  if (total <= 75) return '#d97706';
-  if (total <= 85) return '#16a34a';
-  return '#1d4ed8';
-}
 
 interface ScoringRow {
   versionId: string;
@@ -113,31 +105,23 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
       ? 'text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
       : 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800';
 
-  const absDelta = absoluteScore != null && baselineAbsTotal != null && !isBaseline
-    ? getComparisonDelta(absoluteScore.total, baselineAbsTotal)
-    : null;
-
   const isWinner = row.isWinner && !isBaseline;
 
-  // Card border: thicker darker green for winner, thinner lighter green for others
   const cardClass = isBaseline
     ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950'
     : isWinner
     ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950'
     : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950';
-  // Left border applied via inline style for precise thickness control
   const cardLeftBorderStyle = isBaseline
     ? {}
     : isWinner
     ? { borderLeftWidth: '3px', borderLeftColor: '#22c55e', borderLeftStyle: 'solid' as const }
     : { borderLeftWidth: '1.5px', borderLeftColor: '#86efac', borderLeftStyle: 'solid' as const };
 
-  // Summary line — first visible always
   const summaryLine = isWinner
     ? (winnerExplanation || winnerSummary || bestOverallExplanation || analysis?.summary)
     : analysis?.summary;
 
-  // Sub-scores for always-visible tags (compact)
   const subScores = contentText && contentText.trim().length > 0
     ? calculateMultiScoreDisplay(contentText)
     : null;
@@ -150,13 +134,12 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
     >
       <div id={`breakdown-${row.versionId}-output`} />
 
-      {/* Always-visible header — clickable to expand/collapse */}
+      {/* Always-visible header */}
       <button
         type="button"
         onClick={onToggle}
         className="w-full px-5 py-4 text-left"
       >
-        {/* Title row: name left, score columns right */}
         <div className="flex items-start justify-between gap-4">
           {/* Left: icon + title + badges */}
           <div className="flex-1 min-w-0">
@@ -186,7 +169,6 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                 <RefreshCw className="w-3.5 h-3.5 animate-spin text-gray-400 flex-shrink-0" />
               )}
             </div>
-            {/* Summary line */}
             {summaryLine && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
                 {summaryLine}
@@ -204,39 +186,19 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
             )}
           </div>
 
-          {/* Right: score columns + chevron */}
+          {/* Right: session score only + chevron */}
           <div className="flex items-start gap-3 flex-shrink-0">
-            <div className="flex items-start gap-5">
-              {/* Session column */}
-              <div className="flex flex-col items-end gap-1">
-                <span className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">Session</span>
-                <span className={`text-xl font-black tabular-nums leading-none ${getScoreTextClass(row.finalScore)}`}>
-                  {row.finalScore != null ? row.finalScore : '—'}
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">Session</span>
+              <span className={`text-xl font-black tabular-nums leading-none ${getScoreTextClass(row.finalScore)}`}>
+                {row.finalScore != null ? row.finalScore : '—'}
+              </span>
+              {!isBaseline && delta && !delta.neutral ? (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap ${deltaBadgeClass(delta.positive)}`}>
+                  {delta.label}
                 </span>
-                {!isBaseline && delta && !delta.neutral ? (
-                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap ${deltaBadgeClass(delta.positive)}`}>
-                    {delta.label}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-gray-300 dark:text-gray-700">—</span>
-                )}
-              </div>
-
-              {/* Absolute column */}
-              {absoluteScore && (
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[9px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">Absolute</span>
-                  <span className="text-xl font-black tabular-nums leading-none" style={{ color: getAbsoluteScoreColor(absoluteScore.total) }}>
-                    {absoluteScore.total}
-                  </span>
-                  {!isBaseline && absDelta && !absDelta.neutral ? (
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full tabular-nums whitespace-nowrap ${deltaBadgeClass(absDelta.positive)}`}>
-                      {absDelta.label}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-gray-300 dark:text-gray-700">—</span>
-                  )}
-                </div>
+              ) : (
+                <span className="text-[10px] text-gray-300 dark:text-gray-700">—</span>
               )}
             </div>
 
@@ -302,7 +264,7 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
 
           {analysis && !hasError && (
             <>
-              {/* Why This Wins (winner breakdown) */}
+              {/* Why This Wins */}
               {isWinner && winnerBreakdown && winnerBreakdown.whatItDoesBetter && winnerBreakdown.whatItDoesBetter.length > 0 && (
                 <Section label="Why This Wins" isWinner={true}>
                   <ul className="space-y-1.5">
@@ -316,7 +278,7 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                 </Section>
               )}
 
-              {/* Decision / Recommendation */}
+              {/* Recommendation */}
               {isWinner && decisionLayer && (
                 <Section label="Recommendation" isWinner={true}>
                   <div className="space-y-2.5">
@@ -354,7 +316,7 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                 </Section>
               )}
 
-              {/* Verification Flags — Claims requiring editor review */}
+              {/* Verification Flags */}
               {row.verificationFlags && row.verificationFlags.length > 0 && (
                 <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900/40">
                   <div className="text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:text-amber-200 mb-2">
@@ -371,7 +333,7 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                 </div>
               )}
 
-              {/* Key Strengths & Improvements — single column */}
+              {/* Key Strengths & Improvements */}
               {((analysis.keyStrengths && analysis.keyStrengths.length > 0) || (analysis.suggestedImprovements && analysis.suggestedImprovements.length > 0)) && (
                 <Section label="Key Strengths & Improvements" isWinner={isWinner}>
                   <div className="space-y-4">
@@ -392,7 +354,6 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                       </div>
                     )}
                     {analysis.suggestedImprovements && analysis.suggestedImprovements.length > 0 && (() => {
-                      // Calculate projected score from suggested improvements
                       const validDeltas = analysis.suggestedImprovements
                         .filter((item: any) => typeof item === 'object' && item.points_delta && item.points_delta > 0)
                         .map((item: any) => item.points_delta);
@@ -448,7 +409,7 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                 </Section>
               )}
 
-              {/* Sub-scores with explanations */}
+              {/* Sub-scores */}
               {contentText && contentText.trim().length > 0 && (() => {
                 const scores = calculateMultiScoreDisplay(contentText);
                 return (
@@ -463,13 +424,6 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                   </Section>
                 );
               })()}
-
-              {/* Absolute Score breakdown */}
-              {absoluteScore && absoluteScore.total > 0 && (
-                <Section label="Absolute Score Breakdown" isWinner={false}>
-                  <AbsoluteScoreBadge score={absoluteScore} alwaysOpen />
-                </Section>
-              )}
 
               {/* Winner Factors */}
               {isWinner && winnerFactors && (
@@ -494,7 +448,7 @@ export const VersionAnalysisCard: React.FC<VersionAnalysisCardProps> = ({
                 </Section>
               )}
 
-              {/* Minor Considerations (tradeoffs for winner, shown collapsed) */}
+              {/* Minor Considerations */}
               {isWinner && winnerBreakdown?.tradeoffs && winnerBreakdown.tradeoffs.length > 0 && (
                 <Section label="Minor Considerations" isWinner={false}>
                   <ul className="space-y-1.5">
