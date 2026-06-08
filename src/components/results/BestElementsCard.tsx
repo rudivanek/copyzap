@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Sparkles, ChevronDown, ChevronUp, ExternalLink, Wand2 } from 'lucide-react';
 import { BestElementsResult } from '../../services/api/bestElements';
 
 interface BestElementsCardProps {
   result: BestElementsResult;
   onJumpToVersion?: (versionId: string) => void;
+  onCompile?: () => void;
+  isCompiling?: boolean;
 }
 
 const DIMENSION_COLORS: Record<string, string> = {
@@ -23,6 +25,8 @@ function getDimensionColor(dimension: string): string {
 export const BestElementsCard: React.FC<BestElementsCardProps> = ({
   result,
   onJumpToVersion,
+  onCompile,
+  isCompiling,
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -67,7 +71,6 @@ export const BestElementsCard: React.FC<BestElementsCardProps> = ({
                   key={idx}
                   className="rounded-lg border p-3 bg-gray-50 dark:bg-gray-900"
                 >
-                  {/* Dimension label + version name */}
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${colorClass}`}>
                       {el.dimension}
@@ -84,19 +87,16 @@ export const BestElementsCard: React.FC<BestElementsCardProps> = ({
                     )}
                   </div>
 
-                  {/* Version name */}
                   <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 truncate">
                     From: {el.versionName}
                   </p>
 
-                  {/* Excerpt */}
                   {el.excerpt && (
                     <p className="text-xs text-gray-700 dark:text-gray-300 italic leading-relaxed mb-1.5 border-l-2 border-purple-300 dark:border-purple-700 pl-2">
                       "{el.excerpt}"
                     </p>
                   )}
 
-                  {/* Reason */}
                   <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
                     {el.reason}
                   </p>
@@ -113,6 +113,24 @@ export const BestElementsCard: React.FC<BestElementsCardProps> = ({
               </p>
               <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
                 {result.assemblyNote}
+              </p>
+            </div>
+          )}
+
+          {/* Compile button */}
+          {onCompile && (
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={onCompile}
+                disabled={isCompiling}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white transition-colors shadow-sm disabled:cursor-not-allowed"
+              >
+                <Wand2 className={`w-3.5 h-3.5 ${isCompiling ? 'animate-pulse' : ''}`} />
+                {isCompiling ? 'Compiling…' : 'Compile Best Elements → New Output'}
+              </button>
+              <p className="text-[10px] text-gray-400 dark:text-gray-600 mt-1.5 leading-snug">
+                Assembles the 6 best elements into one cohesive final version and adds it as a new output card.
               </p>
             </div>
           )}
