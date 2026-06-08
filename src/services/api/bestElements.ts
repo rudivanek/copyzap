@@ -141,47 +141,68 @@ export async function compileBestElements(
   currentUser: any,
   sessionId?: string
 ): Promise<string> {
-  // Build element-by-element instructions with full source content
-  const elementInstructions = elements.map(el => {
-    const sourceVersion = versions.find(v => v.id === el.versionId);
-    const sourceContent = sourceVersion
-      ? truncateContent(sourceVersion.content, 800)
-      : '(source not found)';
-    return `## ${el.dimension}
-Use from: "${el.versionName}"
-Why: ${el.reason}
-Excerpt to preserve: "${el.excerpt}"
-Full source section:
-${sourceContent}`;
-  }).join('\n\n---\n\n');
-
   const language = formState?.language || 'English';
   const tone = formState?.tone || 'Professional';
   const outputType = formState?.outputType || 'marketing copy';
 
-  const systemPrompt = `You are an expert copywriter specializing in ${language} marketing copy. You assemble the best elements from multiple versions into one cohesive, polished final piece.
+  // Find the longest source version to use as length reference
+  const longestVersion = versions.reduce((longest, v) => {
+    const len = typeof v.content === 'string' ? v.content.length : JSON.stringify(v.content).length;
+    const longestLen = typeof longest?.content === 'string' ? longest.content.length : JSON.stringify(longest?.content || '').length;
+    return len > longestLen ? v : longest;
+  }, versions[0]);
+  const referenceLength = typeof longestVersion?.content === 'string'
+    ? longestVersion.content.length
+    : 800;
 
-Your output is ONLY the final copy — no explanations, no labels, no JSON. Just the finished marketing copy ready to use.`;
+  // Build full source versions — NO truncation
+  const uniqueVersionIds = [...new Set(elements.map(el => el.versionId).filter(Boolean))];
+  const fullVersionContents = uniqueVersionIds.map(vid => {
+    const v = versions.find(ver => ver.id === vid);
+    if (!v) return '';
+    const name = v.sourceDisplayName || v.type || 'Version';
+    const content = typeof v.content === 'string' ? v.content : JSON.stringify(v.content);
+    return `=== FULL VERSION: "${name}" ===\n${content}`;
+  }).filter(Boolean).join('\n\n');
 
-  const userPrompt = `Assemble a final, cohesive version of this ${outputType} by combining the best elements identified below.
+  // Element instructions
+  const elementInstructions = elements.map((el, idx) => {
+    return `${idx + 1}. ${el.dimension}\n   → Take from: "${el.versionName}"\n   → Key excerpt to preserve: "${el.excerpt}"\n   → Why it wins: ${el.reason}`;
+  }).join('\n\n');
 
-LANGUAGE: ${language}
+  const targetWords = Math.round(referenceLength / 5);
+
+  const systemPrompt = `You are an expert ${language} copywriter. Your job is to compile the best sections from multiple marketing copy versions into one final, complete, production-ready piece.
+
+CRITICAL RULES:
+- Do NOT summarize or shorten anything — transplant the actual full sections from the source versions
+- The output must be approximately ${targetWords} words (match the longest source version)
+- Preserve all specific details: names, phone numbers, addresses, testimonial quotes verbatim, session counts, credentials
+- Your output is ONLY the final copy — no explanations, no meta-commentary, no JSON`;
+
+  const userPrompt = `Compile a final ${outputType} in ${language} by transplanting the best section from each source version.
+
 TONE: ${tone}
+LANGUAGE: ${language}
+TARGET LENGTH: approximately ${targetWords} words — this is a full-length piece, not a summary
 
-BEST ELEMENTS TO COMBINE:
+BEST ELEMENTS TO USE:
 
 ${elementInstructions}
 
-INSTRUCTIONS:
-- Use each identified best element as the foundation for its section
-- Preserve the key phrases and excerpts identified above
-- Ensure smooth transitions between sections so the final piece flows naturally
-- Maintain consistent tone throughout (${tone})
-- Write in ${language}
-- Do NOT add labels or section headers that weren't in the originals unless they improve flow
-- The result should feel like one unified piece, not a patchwork
+SOURCE VERSIONS (transplant directly from these):
 
-Write the final compiled version now:`;
+${fullVersionContents}
+
+COMPILATION INSTRUCTIONS:
+1. For each of the 6 dimensions above, find that full section in the named source version
+2. Transplant it into the compiled output — use the actual text, do not rewrite or shorten
+3. Only lightly edit at section boundaries to ensure smooth transitions
+4. Keep ALL specific details: testimonials word-for-word, phone numbers, addresses, names, session durations, credentials
+5. The final result must be comprehensive and complete — approximately ${targetWords} words
+6. Maintain consistent ${tone} tone throughout in ${language}
+
+Write the complete compiled version now:`;
 
   const data = await makeApiRequestWithFallback(
     SCORING_MODEL,
@@ -189,8 +210,8 @@ Write the final compiled version now:`;
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ],
-    0.4,
-    2500
+    0.3,
+    4000
   );
 
   const content = data.choices?.[0]?.message?.content || '';
