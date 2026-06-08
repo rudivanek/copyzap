@@ -5,6 +5,7 @@ import ComparisonWarningModal from '../../../ComparisonWarningModal';
 import ScoringContextModal from '../modals/ScoringContextModal';
 import NextStepSuggestion from '../../guidance/NextStepSuggestion';
 import UpgradeHint from '../../guidance/UpgradeHint';
+import { BestElementsCard } from '../../../results/BestElementsCard';
 import { GeneratedContentItem, GeneratedContentItemType, FormState, User, VersionDeepAnalysis, ComparisonDeepAnalysisMeta, ScoringContext, AbsoluteScoreBreakdown } from '../../../../types';
 import { ComparisonResult } from '../../../../services/api/comprehensiveScoring';
 import { Button } from '../../../ui/button';
@@ -46,6 +47,7 @@ interface ResultsPanelProps {
   modalInitialContext?: ScoringContext | undefined;
   onSetModalInitialContext?: (context: ScoringContext | undefined) => void;
   onScoringContextConfirm?: (ctx: ScoringContext) => void;
+  bestElementsResult?: import('../../../../services/api/bestElements').BestElementsResult;
 }
 
 const ResultsPanel: React.FC<ResultsPanelProps> = ({
@@ -82,7 +84,8 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
   onSetShowScoringContextModal,
   modalInitialContext: externalModalInitialContext,
   onSetModalInitialContext,
-  onScoringContextConfirm
+  onScoringContextConfirm,
+  bestElementsResult,
 }) => {
   const [showWarningModal, setShowWarningModal] = useState(false);
   // Use external state if provided, otherwise use local state
@@ -435,6 +438,17 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
           )}
 
           <div className="performance-table-wrapper" style={{ display: 'block', height: 'auto', overflow: 'visible' }}>
+            {bestElementsResult && (
+              <div className="mb-6">
+                <BestElementsCard
+                  result={bestElementsResult}
+                  onJumpToVersion={(versionId) => {
+                    const el = document.getElementById(`output-${versionId}`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                />
+              </div>
+            )}
             {comparisonResult && (
               <ComprehensiveComparisonTable
                 comparison={comparisonResult}
