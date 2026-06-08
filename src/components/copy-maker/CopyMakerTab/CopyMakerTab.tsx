@@ -739,6 +739,78 @@ const CopyMakerTab: React.FC<CopyMakerTabProps> = ({
     }
   };
 
+  const handleCompileBestElements = async () => {
+    if (!currentUser || !formState) return;
+    const bestElementsResult = formState.copyResult?.bestElementsResult;
+    if (!bestElementsResult?.elements?.length) {
+      toast.error('Generate Best Elements Summary first.');
+      return;
+    }
+    const versions = (formState.copyResult?.generatedVersions || []).filter(v => !v.comparedContent);
+    setIsGeneratingBestElements(true);
+    addProgressMessage('Compiling best elements into a new version...');
+    try {
+      const { compileBestElements } = await import('../../../services/api/bestElements');
+      const { generateAbsoluteScore } = await import('../../../services/api/absoluteScoring');
+      const { saveAbsoluteScore } = await import('../../../services/supabaseClient');
+      const { v4: uuidv4 } = await import('uuid');
+
+      const compiledContent = await compileBestElements(
+        bestElementsResult.elements,
+        versions,
+        formState,
+        currentUser,
+        formState.sessionId
+      );
+
+      const newItem: GeneratedContentItem = {
+        id: uuidv4(),
+        type: GeneratedContentItemType.Alternative,
+        content: compiledContent,
+        generatedAt: new Date().toISOString(),
+        sourceDisplayName: 'Compiled: Best Elements',
+        analysisMode: 'on_demand',
+      };
+
+      // Generate absolute score non-critically
+      try {
+        const absScore = await generateAbsoluteScore(compiledContent, currentUser, formState.sessionId);
+        newItem.absoluteScore = absScore;
+        if (currentUser?.id) saveAbsoluteScore(currentUser.id, newItem.id, absScore, formState.sessionId);
+      } catch { /* non-critical */ }
+
+      setFormState(prev => ({
+        ...prev,
+        copyResult: {
+          ...prev.copyResult,
+          generatedVersions: [
+            ...(prev.copyResult?.generatedVersions || []),
+            newItem,
+          ],
+          comparisonDeepAnalysisMeta: undefined,
+        }
+      }));
+
+      addProgressMessage('Compiled version created!');
+      toast.success('Compiled: Best Elements added as a new output!');
+
+      setTimeout(() => {
+        const el = document.getElementById(`output-${newItem.id}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 400);
+
+      if (comparisonResult) {
+        setPendingMissingVersionsCount(1);
+        setShowRegenerateAnalysisModal(true);
+      }
+    } catch (error: any) {
+      console.error('Error compiling best elements:', error);
+      toast.error(`Failed to compile: ${error.message}`);
+    } finally {
+      setIsGeneratingBestElements(false);
+    }
+  };
+
   const handleAddCards = (items: GeneratedContentItem[], afterCardId?: string) => {
     setFormState(prev => {
       const versions = prev.copyResult?.generatedVersions || [];
@@ -2337,6 +2409,8 @@ try {
               onSetModalInitialContext={setModalInitialContext}
               onScoringContextConfirm={handleScoringContextConfirm}
               bestElementsResult={formState.copyResult?.bestElementsResult}
+              onCompileBestElements={handleCompileBestElements}
+              isCompiling={isGeneratingBestElements}
             />
           ) : (
             <EmptyState
