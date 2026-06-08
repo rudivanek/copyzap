@@ -1,14 +1,15 @@
 /**
  * Best Elements Analysis Service
  *
- * Reads all scored versions and identifies the strongest individual section
- * from each version across key copywriting dimensions:
- * headline, hook, testimonials, explanation, CTA, credibility block.
+ * Identifies the strongest section per dimension across all versions,
+ * then compiles them via CODE-LEVEL TEXT EXTRACTION (not AI rewriting).
  *
- * Compile strategy: CODE-LEVEL EXTRACTION, not AI rewriting.
- * The AI only identifies which excerpt belongs to which section.
- * The code extracts the actual text blocks from source versions.
- * A small AI call writes only the transition sentences between blocks.
+ * Compile approach:
+ *   1. Convert all version content to plain markdown text
+ *   2. Split into sections by heading or double newline
+ *   3. Find the section matching each element's excerpt by word overlap
+ *   4. Concatenate matched sections verbatim
+ *   5. One tiny AI call to write transitions only (max 15 words each)
  */
 
 import { GeneratedContentItem } from '../../types';
@@ -17,11 +18,11 @@ import { SCORING_MODEL } from '../../constants';
 import { ComparisonResult } from './comprehensiveScoring';
 
 export interface BestElement {
-  dimension: string;        // e.g. "Headline / Opening Hook"
-  versionName: string;      // e.g. "Blended: ..."
+  dimension: string;
+  versionName: string;
   versionId: string;
-  excerpt: string;          // Short quote from the winning section (≤ 40 words)
-  reason: string;           // One sentence explaining why this element wins
+  excerpt: string;
+  reason: string;
 }
 
 export interface BestElementsResult {
@@ -30,44 +31,94 @@ export interface BestElementsResult {
   generatedAt: string;
 }
 
-function truncateContent(content: any, maxChars = 1200): string {
-  const text = typeof content === 'string' ? content : JSON.stringify(content);
-  return text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
-}
+// ── Content normalisation ────────────────────────────────────────────────────
 
 /**
- * Split content into sections by double newline or markdown heading.
- * Returns an array of blocks (each block is a heading + its paragraphs).
+ * Convert any version content (string, structured JSON, or object) to
+ * plain markdown text with H2 headings preserved.
  */
-function splitIntoSections(content: string): string[] {
-  if (!content) return [];
+function contentToMarkdown(content: any): string {
+  if (!content) return '';
 
-  // Split on markdown headings (# ## ###) or double newlines
-  const lines = content.split('\n');
+  // Already a plain string
+  if (typeof content === 'string') {
+    // If it looks like JSON, try to parse it
+    const trimmed = content.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return contentToMarkdown(parsed);
+      } catch {
+        return content; // Return as-is
+      }
+    }
+    return content;
+  }
+
+  // Structured content with headline + sections (CopyZap format)
+  if (typeof content === 'object' && content !== null) {
+    if (content.headline && Array.isArray(content.sections)) {
+      let result = `# ${content.headline}\n\n`;
+      content.sections.forEach((section: any) => {
+        if (!section) return;
+        if (section.title) result += `## ${section.title}\n\n`;
+        if (section.content) result += `${section.content}\n\n`;
+        if (section.listItems && Array.isArray(section.listItems)) {
+          section.listItems.forEach((item: string) => {
+            result += `- ${item}\n`;
+          });
+          result += '\n';
+        }
+      });
+      return result.trim();
+    }
+
+    // Generic object — try common text fields
+    if (content.text) return String(content.text);
+    if (content.output) return String(content.output);
+    if (content.message) return String(content.message);
+    if (content.content) return contentToMarkdown(content.content);
+
+    // Last resort: stringify
+    return JSON.stringify(content, null, 2);
+  }
+
+  return String(content);
+}
+
+// ── Section splitting ────────────────────────────────────────────────────────
+
+/**
+ * Split a markdown string into sections. Each section starts at a heading
+ * (# ## ###) or at a double-newline paragraph boundary.
+ * Returns an array of text blocks, each non-empty.
+ */
+function splitIntoSections(markdown: string): string[] {
+  if (!markdown) return [];
+
+  const lines = markdown.split('\n');
   const sections: string[] = [];
-  let currentSection: string[] = [];
+  let current: string[] = [];
 
   for (const line of lines) {
     const isHeading = /^#{1,3}\s/.test(line.trim());
-    if (isHeading && currentSection.length > 0) {
-      const block = currentSection.join('\n').trim();
-      if (block) sections.push(block);
-      currentSection = [line];
+    if (isHeading && current.length > 0) {
+      const block = current.join('\n').trim();
+      if (block.length > 10) sections.push(block);
+      current = [line];
     } else {
-      currentSection.push(line);
+      current.push(line);
     }
   }
-
-  // Push last section
-  if (currentSection.length > 0) {
-    const block = currentSection.join('\n').trim();
-    if (block) sections.push(block);
+  if (current.length > 0) {
+    const block = current.join('\n').trim();
+    if (block.length > 10) sections.push(block);
   }
 
-  // If no headings found, split by double newline paragraphs
+  // No headings found — split by double newline
   if (sections.length <= 1) {
-    return content
-      .split(/\n\n+/)
+    return markdown
+      .split(/\n{2,}/)
       .map(s => s.trim())
       .filter(s => s.length > 20);
   }
@@ -75,36 +126,49 @@ function splitIntoSections(content: string): string[] {
   return sections;
 }
 
+// ── Section matching ─────────────────────────────────────────────────────────
+
 /**
- * Find the section in a version's content that best matches an excerpt.
- * Returns the full section text, or the excerpt itself if no match found.
+ * Find the section in a markdown string that best matches an excerpt.
+ * Uses word-overlap scoring. Returns the full section text.
  */
-function extractMatchingSection(content: string, excerpt: string): string {
-  if (!content || !excerpt) return excerpt || '';
+function extractMatchingSection(markdown: string, excerpt: string): string {
+  if (!markdown || !excerpt) return excerpt || '';
 
-  const sections = splitIntoSections(content);
-  if (sections.length === 0) return excerpt;
+  const sections = splitIntoSections(markdown);
+  if (sections.length === 0) return markdown;
 
-  // Normalize for comparison
-  const normalizedExcerpt = excerpt.toLowerCase().replace(/[""«»]/g, '"').trim();
+  // Normalise for comparison
+  const normalize = (s: string) =>
+    s.toLowerCase()
+     .replace(/[""«»"']/g, '"')
+     .replace(/[^\w\s]/g, ' ')
+     .trim();
 
-  // Try exact substring match first
+  const excerptWords = normalize(excerpt)
+    .split(/\s+/)
+    .filter(w => w.length > 3); // meaningful words only
+
+  if (excerptWords.length === 0) return sections[0];
+
+  // Score each section by how many excerpt words it contains
+  let bestSection = sections[0];
+  let bestScore = -1;
+
   for (const section of sections) {
-    const normalizedSection = section.toLowerCase().replace(/[""«»]/g, '"');
-    // Check if excerpt words appear in this section
-    const excerptWords = normalizedExcerpt
-      .split(/\s+/)
-      .filter(w => w.length > 4)
-      .slice(0, 5); // first 5 meaningful words
+    const normalizedSection = normalize(section);
     const matchCount = excerptWords.filter(w => normalizedSection.includes(w)).length;
-    if (matchCount >= Math.min(3, excerptWords.length)) {
-      return section;
+    const score = matchCount / excerptWords.length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestSection = section;
     }
   }
 
-  // Fallback: return the largest section (most content)
-  return sections.reduce((longest, s) => s.length > longest.length ? s : longest, sections[0]);
+  return bestSection;
 }
+
+// ── Public API ───────────────────────────────────────────────────────────────
 
 export async function generateBestElements(
   versions: GeneratedContentItem[],
@@ -116,51 +180,49 @@ export async function generateBestElements(
     throw new Error('Need at least 2 versions to identify best elements.');
   }
 
-  // Build a compact summary of each version with its score
+  // Build summaries — convert to markdown first so the AI sees clean text
   const versionSummaries = versions.map(v => {
     const row = comparisonResult.rows.find((r: any) => r.versionId === v.id);
     const score = row?.finalScore ?? row?.score ?? '—';
     const name = v.sourceDisplayName || v.type || 'Version';
-    const content = truncateContent(v.content, 1000);
-    return `--- VERSION: "${name}" (Score: ${score}/100) id:${v.id} ---\n${content}`;
+    const markdown = contentToMarkdown(v.content);
+    const preview = markdown.length > 1000 ? markdown.slice(0, 1000) + '…' : markdown;
+    return `--- VERSION: "${name}" (Score: ${score}/100) id:${v.id} ---\n${preview}`;
   }).join('\n\n');
 
   const systemPrompt = `You are a senior copywriter and content strategist. You analyze multiple versions of marketing copy and identify the single strongest element in each key dimension.
 
-You return ONLY valid JSON — no markdown fences, no explanation text outside the JSON.`;
+Return ONLY valid JSON — no markdown fences, no text outside the JSON.`;
 
-  const userPrompt = `Analyze these ${versions.length} versions of marketing copy and identify the best individual element across 6 key dimensions.
+  const userPrompt = `Analyze these ${versions.length} versions and identify the best element across 6 dimensions.
 
 ${versionSummaries}
 
-For each dimension below, identify which version has the strongest execution of that element.
-Extract a short representative excerpt (max 30 words) — this MUST be the actual text from that version, word for word.
-Give one concise reason why it wins.
-Include the exact versionId from the "id:" tag shown above.
+For each dimension, identify which version has the strongest execution. Extract a short verbatim excerpt (max 30 words, exact text from that version). Include the exact versionId from the "id:" tag.
 
-Dimensions to evaluate:
-1. Headline / Opening Hook — the first line or headline that grabs attention
-2. Problem Statement — how the copy articulates the reader's pain or frustration
-3. Treatment Explanation — how clearly and compellingly the solution is explained
-4. Social Proof / Testimonials — the testimonial section or trust signals
-5. Call to Action — the CTA strength, clarity, and urgency
-6. Credibility / Authority — professional credentials and trust-building elements
+Dimensions:
+1. Headline / Opening Hook
+2. Problem Statement
+3. Treatment Explanation
+4. Social Proof / Testimonials
+5. Call to Action
+6. Credibility / Authority
 
-Return this exact JSON structure:
+Return this JSON:
 {
   "elements": [
     {
       "dimension": "Headline / Opening Hook",
-      "versionName": "exact version name here",
-      "versionId": "exact versionId from the id: tag",
-      "excerpt": "actual verbatim text from that version (max 30 words)",
-      "reason": "one sentence explaining why this element wins"
+      "versionName": "exact name",
+      "versionId": "exact id from id: tag",
+      "excerpt": "verbatim text from that version (max 30 words)",
+      "reason": "one sentence why it wins"
     }
   ],
-  "assemblyNote": "2-3 sentence practical note telling the user how to combine these elements into a final version, written in plain language"
+  "assemblyNote": "2-3 sentence practical note on how to combine these elements"
 }
 
-Return ONLY the JSON. No markdown. No explanation outside the JSON.`;
+Return ONLY JSON.`;
 
   const data = await makeApiRequestWithFallback(
     SCORING_MODEL,
@@ -182,11 +244,8 @@ Return ONLY the JSON. No markdown. No explanation outside the JSON.`;
     throw new Error('Failed to parse best elements response from AI.');
   }
 
-  // Attach versionId by matching versionName if AI didn't fill it correctly
   const elements: BestElement[] = (parsed.elements || []).map((el: any) => {
-    // First try direct ID match
     let matched = versions.find(v => v.id === el.versionId);
-    // Fallback: match by name
     if (!matched) {
       matched = versions.find(v =>
         (v.sourceDisplayName || v.type || '').toLowerCase().includes(
@@ -210,17 +269,6 @@ Return ONLY the JSON. No markdown. No explanation outside the JSON.`;
   };
 }
 
-/**
- * Compile Best Elements — CODE-LEVEL EXTRACTION approach.
- *
- * Step 1: For each element, find the matching section in the source version using
- *         text matching (no AI rewriting).
- * Step 2: Concatenate the extracted blocks in order.
- * Step 3: One small AI call to write smooth 1-sentence transitions between blocks.
- *
- * The AI never touches the actual copy content — only writes transitions.
- * This guarantees headings, phone numbers, testimonials, and all details are preserved.
- */
 export async function compileBestElements(
   elements: BestElement[],
   versions: GeneratedContentItem[],
@@ -231,21 +279,27 @@ export async function compileBestElements(
   const language = formState?.language || 'English';
   const tone = formState?.tone || 'Professional';
 
-  // ── STEP 1: Extract the actual section from each source version ──────────────
-  const extractedBlocks: Array<{ dimension: string; block: string; versionName: string }> = [];
+  // ── STEP 1: Convert all versions to clean markdown ───────────────────────
+  const versionMarkdowns: Map<string, string> = new Map();
+  for (const v of versions) {
+    versionMarkdowns.set(v.id, contentToMarkdown(v.content));
+  }
+
+  // ── STEP 2: Extract matching section for each element ────────────────────
+  const extractedBlocks: Array<{
+    dimension: string;
+    block: string;
+    versionName: string;
+  }> = [];
 
   for (const el of elements) {
-    const sourceVersion = versions.find(v => v.id === el.versionId);
-    if (!sourceVersion) continue;
+    const markdown = versionMarkdowns.get(el.versionId);
+    if (!markdown) continue;
 
-    const content = typeof sourceVersion.content === 'string'
-      ? sourceVersion.content
-      : JSON.stringify(sourceVersion.content);
-
-    const extractedSection = extractMatchingSection(content, el.excerpt);
+    const section = extractMatchingSection(markdown, el.excerpt);
     extractedBlocks.push({
       dimension: el.dimension,
-      block: extractedSection,
+      block: section,
       versionName: el.versionName,
     });
   }
@@ -254,36 +308,20 @@ export async function compileBestElements(
     throw new Error('Could not extract any sections from source versions.');
   }
 
-  // ── STEP 2: Concatenate blocks with placeholder transitions ──────────────────
-  // We'll ask the AI to only generate the transition text, not rewrite anything
-  const blocksForAI = extractedBlocks.map((b, idx) => ({
-    index: idx,
-    dimension: b.dimension,
-    content: b.block,
-  }));
-
-  const systemPrompt = `You are an expert ${language} copywriter. You receive a list of extracted copy sections that must appear VERBATIM in the final output.
-
-Your ONLY job is to write a SHORT transition sentence (max 15 words) between each pair of sections where needed.
-You must NEVER rewrite, summarize, or alter the provided sections.
-Return ONLY valid JSON.`;
-
-  const userPrompt = `These are ${blocksForAI.length} extracted sections that will be assembled in order. Write a brief transition sentence (max 15 words, in ${language}) to place BETWEEN each consecutive pair where the topic shift is abrupt. If two sections flow naturally, return an empty string for that transition.
-
-Sections:
-${blocksForAI.map(b => `[${b.index}] ${b.dimension}:\n${b.content.slice(0, 200)}…`).join('\n\n')}
-
-Return this JSON:
-{
-  "transitions": ["transition after block 0", "transition after block 1", "transition after block 2", "transition after block 3", "transition after block 4"]
-}
-
-Transitions must be in ${language}, tone: ${tone}. Use empty string "" if no transition needed.
-Return ONLY JSON.`;
-
-  let transitions: string[] = new Array(extractedBlocks.length - 1).fill('');
+  // ── STEP 3: Generate transitions between sections ────────────────────────
+  let transitions: string[] = new Array(extractedBlocks.length).fill('');
 
   try {
+    const systemPrompt = `You write SHORT transition sentences between marketing copy sections. Max 15 words each, in ${language}. Return ONLY valid JSON.`;
+
+    const userPrompt = `Write a transition sentence (max 15 words, ${language}, ${tone} tone) to place between each pair of consecutive sections. Return "" if no transition is needed (sections flow naturally).
+
+Sections in order:
+${extractedBlocks.map((b, i) => `[${i}] ${b.dimension}: "${b.block.slice(0, 120).replace(/\n/g, ' ')}…"`).join('\n')}
+
+Return JSON: { "transitions": ["after block 0", "after block 1", "after block 2", "after block 3", "after block 4"] }
+Return ONLY JSON.`;
+
     const data = await makeApiRequestWithFallback(
       SCORING_MODEL,
       [
@@ -291,11 +329,11 @@ Return ONLY JSON.`;
         { role: 'user', content: userPrompt }
       ],
       0.3,
-      500
+      400
     );
+
     const raw = data.choices?.[0]?.message?.content || '';
-    const cleaned = cleanJsonResponse(raw);
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(cleanJsonResponse(raw));
     if (Array.isArray(parsed.transitions)) {
       transitions = parsed.transitions;
     }
@@ -303,12 +341,13 @@ Return ONLY JSON.`;
     // Non-critical — proceed without transitions
   }
 
-  // ── STEP 3: Assemble the final compiled text ─────────────────────────────────
+  // ── STEP 4: Assemble final text ──────────────────────────────────────────
   const parts: string[] = [];
   for (let i = 0; i < extractedBlocks.length; i++) {
     parts.push(extractedBlocks[i].block);
-    if (i < extractedBlocks.length - 1 && transitions[i]?.trim()) {
-      parts.push(transitions[i].trim());
+    const transition = transitions[i]?.trim();
+    if (transition && i < extractedBlocks.length - 1) {
+      parts.push(transition);
     }
   }
 
