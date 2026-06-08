@@ -48,6 +48,8 @@ interface ResultsPanelProps {
   onSetModalInitialContext?: (context: ScoringContext | undefined) => void;
   onScoringContextConfirm?: (ctx: ScoringContext) => void;
   bestElementsResult?: import('../../../../services/api/bestElements').BestElementsResult;
+  onCompileBestElements?: () => void;
+  isCompiling?: boolean;
 }
 
 const ResultsPanel: React.FC<ResultsPanelProps> = ({
@@ -86,6 +88,8 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
   onSetModalInitialContext,
   onScoringContextConfirm,
   bestElementsResult,
+  onCompileBestElements,
+  isCompiling,
 }) => {
   const [showWarningModal, setShowWarningModal] = useState(false);
   // Use external state if provided, otherwise use local state
@@ -446,6 +450,8 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({
                     const el = document.getElementById(`output-${versionId}`);
                     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
+                  onCompile={onCompileBestElements}
+                  isCompiling={isCompiling}
                 />
               </div>
             )}
