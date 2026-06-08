@@ -791,38 +791,7 @@ export const generateFullHtmlExportForCard = (
     html += `<p style="font-size:13px;color:#6b7280;font-style:italic;margin:2px 0;">Trust: ${trustExp}</p>\n`;
     html += `<p style="font-size:13px;color:#6b7280;font-style:italic;margin:2px 0;">Risk: ${riskExp}</p>\n`;
 
-    // Absolute Score breakdown
-    if (card.absoluteScore && card.absoluteScore.total > 0) {
-      const abs = card.absoluteScore;
-      const absTotal = abs.total;
-      const absColor = absTotal <= 65 ? '#dc2626' : absTotal <= 75 ? '#d97706' : absTotal <= 85 ? '#16a34a' : '#1d4ed8';
-      html += '<div style="border-top:1px solid #e5e7eb;margin:16px 0 12px 0;"></div>\n';
-      html += '<div style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">\n';
-      html += '<p style="font-size:11px;letter-spacing:0.08em;color:#6b7280;text-transform:uppercase;font-weight:600;margin:0;">ABSOLUTE SCORE</p>\n';
-      html += `<span style="font-size:18px;font-weight:900;color:${absColor};font-variant-numeric:tabular-nums;">${absTotal}<span style="font-size:12px;font-weight:400;color:#9ca3af;">/100</span></span>\n`;
-      html += '</div>\n';
-      const absDims = [
-        { label: 'Clarity & Readability',    value: abs.clarity,      note: abs.clarity_note },
-        { label: 'Persuasion & Conversion',  value: abs.persuasion,   note: abs.persuasion_note },
-        { label: 'Audience Fit',             value: abs.audience_fit, note: abs.audience_fit_note },
-        { label: 'Structure & Flow',         value: abs.structure,    note: abs.structure_note },
-      ];
-      absDims.forEach(dim => {
-        const pct = Math.round((dim.value / 25) * 100);
-        html += '<div style="margin-bottom:10px;">\n';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">\n';
-        html += `<span style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">${dim.label}</span>\n`;
-        html += `<span style="font-size:11px;font-weight:700;color:#374151;font-variant-numeric:tabular-nums;">${dim.value}<span style="opacity:0.4;">/25</span></span>\n`;
-        html += '</div>\n';
-        html += '<div style="width:100%;height:4px;background:#f3f4f6;border-radius:9999px;overflow:hidden;margin-bottom:3px;">\n';
-        html += `<div style="height:100%;width:${pct}%;background:${absColor};border-radius:9999px;"></div>\n`;
-        html += '</div>\n';
-        if (dim.note) {
-          html += `<p style="font-size:11px;color:#9ca3af;margin:0;line-height:1.4;">${dim.note}</p>\n`;
-        }
-        html += '</div>\n';
-      });
-    }
+    // Absolute Score breakdown removed — scores shown in rankings table only
 
     if (analysis.keyStrengths?.length || analysis.suggestedImprovements?.length) {
       html += '<div style="border-top:1px solid #e5e7eb;margin:16px 0;"></div>\n';
@@ -4179,15 +4148,7 @@ export const exportLLMEvaluationAudit = (
             markdown += `\n`;
           }
 
-          // Absolute Score breakdown
-          const cmpAbsScore = absScoreMap[row.versionId] || absScoreMap[label];
-          if (cmpAbsScore && cmpAbsScore.total > 0) {
-            markdown += `**Absolute Score: ${cmpAbsScore.total}/100**\n`;
-            markdown += `- Clarity & Readability (${cmpAbsScore.clarity}/25): ${cmpAbsScore.clarity_note}\n`;
-            markdown += `- Persuasion & Conversion (${cmpAbsScore.persuasion}/25): ${cmpAbsScore.persuasion_note}\n`;
-            markdown += `- Audience Fit (${cmpAbsScore.audience_fit}/25): ${cmpAbsScore.audience_fit_note}\n`;
-            markdown += `- Structure & Flow (${cmpAbsScore.structure}/25): ${cmpAbsScore.structure_note}\n\n`;
-          }
+          // Absolute Score removed — shown in rankings table only
 
           // .md-only fields (items 9-12)
           markdown += `**Evaluation Confidence:** ${confidence.confidence}${confidence.reason ? ` — ${confidence.reason}` : ''}\n`;
