@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Info } from 'lucide-react';
 import { getComparisonDelta } from '../../../utils/comparisonDelta';
 import { calculateMultiScoreDisplay } from '../../../utils/multiScoreDisplay';
@@ -81,9 +81,6 @@ export const RankingsSnapshotCard: React.FC<RankingsSnapshotCardProps> = ({
   baselineScore,
   onRowClick,
 }) => {
-  // Absolute column is hidden by default — can be toggled on by user
-  const [showAbsolute, setShowAbsolute] = useState(false);
-
   const decisionBadges = useMemo(() => {
     const versionsWithScores = rows.map(row => {
       const subScores = row.contentText ? calculateMultiScoreDisplay(row.contentText) : null;
@@ -115,7 +112,7 @@ export const RankingsSnapshotCard: React.FC<RankingsSnapshotCardProps> = ({
     null;
   const baselineAbsTotal = baselineRow?.absoluteScore?.total ?? null;
 
-  // Only show the toggle button if at least one row has an absolute score
+  // Only show the Absolute column if at least one row has an absolute score
   const hasAnyAbsoluteScore = rows.some(r => r.absoluteScore != null);
 
   return (
@@ -128,34 +125,18 @@ export const RankingsSnapshotCard: React.FC<RankingsSnapshotCardProps> = ({
         <span className="text-[10px] font-bold text-gray-300 dark:text-gray-700 uppercase tracking-widest">
           Rankings
         </span>
-        <div className="flex items-center gap-3">
-          {/* Column labels — only shown when absolute is visible */}
-          {showAbsolute && hasAnyAbsoluteScore && (
-            <>
-              <ScoreColumnLabel
-                label="Session"
-                tip="Relative to other versions generated in this session — may shift slightly when new versions are added"
-              />
-              <ScoreColumnLabel
-                label="Absolute"
-                tip="Evaluated in isolation — does not change as new versions are added. Use this for a stable quality benchmark."
-              />
-            </>
-          )}
-          {/* Toggle button — only shown when absolute scores exist */}
-          {hasAnyAbsoluteScore && (
-            <button
-              onClick={() => setShowAbsolute(prev => !prev)}
-              className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border transition-colors cursor-pointer ${
-                showAbsolute
-                  ? 'text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-                  : 'text-gray-400 dark:text-gray-600 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:text-gray-600 dark:hover:text-gray-400'
-              }`}
-            >
-              {showAbsolute ? 'Hide Absolute' : 'Show Absolute'}
-            </button>
-          )}
-        </div>
+        {hasAnyAbsoluteScore && (
+          <div className="flex items-center gap-3">
+            <ScoreColumnLabel
+              label="Session"
+              tip="Relative to other versions generated in this session — may shift slightly when new versions are added"
+            />
+            <ScoreColumnLabel
+              label="Absolute"
+              tip="Evaluated in isolation — does not change as new versions are added. Use this for a stable quality benchmark."
+            />
+          </div>
+        )}
       </div>
 
       {/* Rows */}
@@ -176,7 +157,7 @@ export const RankingsSnapshotCard: React.FC<RankingsSnapshotCardProps> = ({
             : '';
 
           const absDelta =
-            showAbsolute && !isBaseline && row.absoluteScore && baselineAbsTotal !== null
+            !isBaseline && row.absoluteScore && baselineAbsTotal !== null
               ? getAbsoluteDelta(row.absoluteScore.total, baselineAbsTotal)
               : null;
 
@@ -272,8 +253,8 @@ export const RankingsSnapshotCard: React.FC<RankingsSnapshotCardProps> = ({
                   {row.finalScore}
                 </span>
 
-                {/* Absolute score + delta — only rendered when toggled on */}
-                {showAbsolute && hasAnyAbsoluteScore && (
+                {/* Absolute score + delta — only rendered if any row has absolute scores */}
+                {hasAnyAbsoluteScore && (
                   <div className="flex items-center gap-1.5 ml-1">
                     {absDelta && (
                       <span
@@ -314,12 +295,9 @@ export const RankingsSnapshotCard: React.FC<RankingsSnapshotCardProps> = ({
           padding: '0 16px 12px',
         }}
       >
-        &#9432; Las puntuaciones son relativas entre las versiones comparadas en esta sesión.
-        Agregar nuevas versiones puede ajustar los puntajes ligeramente. Enfócate en el orden
-        del ranking y la mejora porcentual vs. el texto original.
-        {showAbsolute && (
-          <> Las puntuaciones absolutas se evalúan de forma independiente y no cambian.</>
-        )}
+        &#9432; Session scores are relative to other versions in this session — adding new versions
+        may slightly adjust them. Absolute scores are evaluated in isolation and never change. Focus
+        on the Absolute score for a stable quality benchmark.
       </p>
     </div>
   );
