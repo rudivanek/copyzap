@@ -560,6 +560,7 @@ const CopyMakerTab: React.FC<CopyMakerTabProps> = ({
   const [comparisonResult, setComparisonResult] = useState<any>(null);
   const [isBlending, setIsBlending] = useState(false);
   const [isScoringNewOutputs, setIsScoringNewOutputs] = useState(false);
+  const [isGeneratingBestElements, setIsGeneratingBestElements] = useState(false);
   const [comparisonOutdated, setComparisonOutdated] = useState(false);
   const [showRegenerateAnalysisModal, setShowRegenerateAnalysisModal] = useState(false);
   const [pendingMissingVersionsCount, setPendingMissingVersionsCount] = useState(0);
@@ -703,6 +704,39 @@ const CopyMakerTab: React.FC<CopyMakerTabProps> = ({
 
   const handleBoost = async (sourceItem: GeneratedContentItem) => {
     await baseHandlePerformanceBoost(sourceItem);
+  };
+
+  const handleGenerateBestElements = async () => {
+    if (!currentUser || !formState || !comparisonResult) return;
+    const versions = (formState.copyResult?.generatedVersions || []).filter(v => !v.comparedContent);
+    if (versions.length < 2) {
+      toast.error('Need at least 2 versions to generate Best Elements Summary.');
+      return;
+    }
+    setIsGeneratingBestElements(true);
+    addProgressMessage('Analyzing best elements across all versions...');
+    try {
+      const { generateBestElements } = await import('../../../services/api/bestElements');
+      const result = await generateBestElements(versions, comparisonResult, currentUser, formState.sessionId);
+      setFormState(prev => ({
+        ...prev,
+        copyResult: {
+          ...prev.copyResult,
+          bestElementsResult: result,
+        }
+      }));
+      addProgressMessage('Best Elements Summary ready!');
+      toast.success('Best Elements Summary generated!');
+      setTimeout(() => {
+        const el = document.getElementById('best-elements-summary');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    } catch (error: any) {
+      console.error('Error generating best elements:', error);
+      toast.error('Failed to generate Best Elements Summary. Please try again.');
+    } finally {
+      setIsGeneratingBestElements(false);
+    }
   };
 
   const handleAddCards = (items: GeneratedContentItem[], afterCardId?: string) => {
@@ -2169,6 +2203,8 @@ try {
               onCompareWithGrok={compareOutputsWithGrok}
               onBlendVersions={handleBlendVersions}
               isBlending={isBlending}
+              onGenerateBestElements={handleGenerateBestElements}
+              isGeneratingBestElements={isGeneratingBestElements}
               targetWordCount={calculateTargetWordCount(formState).target}
             />
           );
@@ -2300,6 +2336,7 @@ try {
               modalInitialContext={modalInitialContext}
               onSetModalInitialContext={setModalInitialContext}
               onScoringContextConfirm={handleScoringContextConfirm}
+              bestElementsResult={formState.copyResult?.bestElementsResult}
             />
           ) : (
             <EmptyState
