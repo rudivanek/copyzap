@@ -2352,6 +2352,7 @@ try {
       <FloatingOutputNavigation
         generatedVersions={formState.copyResult?.generatedVersions ?? []}
         hasComparison={!!comparisonResult}
+        hasBestElements={!!formState.copyResult?.bestElementsResult}
       />
 
       {/* Progress Modal */}
