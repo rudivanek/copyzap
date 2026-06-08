@@ -2663,16 +2663,7 @@ export const formatAsEnhancedMarkdown = (
                 markdown += `- **Risk (${subScoresMd.risk}):** ${getRiskExplanation(subScoresMd.risk)}\n\n`;
               }
 
-              // Absolute Score breakdown
-              const evalAbsScore = generatedOutputCards.find(c => c.id === row.versionId)?.absoluteScore;
-              if (evalAbsScore && evalAbsScore.total > 0) {
-                markdown += `#### Absolute Score\n\n`;
-                markdown += `**${evalAbsScore.total}/100**\n\n`;
-                markdown += `- **Clarity & Readability (${evalAbsScore.clarity}/25):** ${evalAbsScore.clarity_note}\n`;
-                markdown += `- **Persuasion & Conversion (${evalAbsScore.persuasion}/25):** ${evalAbsScore.persuasion_note}\n`;
-                markdown += `- **Audience Fit (${evalAbsScore.audience_fit}/25):** ${evalAbsScore.audience_fit_note}\n`;
-                markdown += `- **Structure & Flow (${evalAbsScore.structure}/25):** ${evalAbsScore.structure_note}\n\n`;
-              }
+              // Absolute Score removed — shown in rankings table only
 
               if (analysis.keyStrengths?.length > 0) {
                 markdown += `#### Key Strengths\n\n`;
