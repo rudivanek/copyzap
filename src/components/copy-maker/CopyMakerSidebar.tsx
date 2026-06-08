@@ -79,6 +79,8 @@ export interface CopyMakerSidebarProps {
   onCompareWithGrok?: (isIncremental?: boolean, scoringContext?: import('../../types').ScoringContext) => void;
   onBlendVersions?: () => void;
   isBlending?: boolean;
+  onGenerateBestElements?: () => void;
+  isGeneratingBestElements?: boolean;
   targetWordCount: number;
 }
 
@@ -1025,6 +1027,8 @@ const CopyMakerSidebar: React.FC<CopyMakerSidebarProps> = ({
   onCompareWithGrok,
   onBlendVersions,
   isBlending,
+  onGenerateBestElements,
+  isGeneratingBestElements,
   targetWordCount,
 }) => {
   const navigate = useNavigate();
@@ -1488,6 +1492,26 @@ const CopyMakerSidebar: React.FC<CopyMakerSidebarProps> = ({
                 </SidebarBtn>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Section 2D: Best Elements Summary ───────────────────── */}
+        {onGenerateBestElements && comparisonResult && sortedGeneratedVersions.length >= 2 && (
+          <div className="border-b border-gray-100 dark:border-gray-800">
+            <SectionHeader label="Best Elements" open={blendOpen} onToggle={() => {}} />
+            <div className="space-y-1 px-1.5 pb-1.5">
+              <SidebarBtn
+                onClick={() => onGenerateBestElements()}
+                disabled={isGeneratingBestElements}
+                title="Identify the strongest section from each version across key dimensions"
+              >
+                <Sparkles size={10} className={isGeneratingBestElements ? 'animate-pulse' : ''} />
+                {isGeneratingBestElements ? 'Analyzing…' : 'Best Elements Summary'}
+              </SidebarBtn>
+              <p className="text-[9px] text-gray-400 dark:text-gray-600 px-1 leading-snug">
+                Shows the strongest headline, CTA, testimonials, and more — from each version.
+              </p>
+            </div>
           </div>
         )}
 
