@@ -269,6 +269,38 @@ Return ONLY JSON.`;
   };
 }
 
+// ── Similarity scoring ───────────────────────────────────────────────────────
+
+/**
+ * Compute word-overlap similarity between two text blocks.
+ * Returns 0 (completely different) to 1 (identical).
+ * Uses meaningful words only (length > 3).
+ */
+function textSimilarity(a: string, b: string): number {
+  const normalize = (s: string) =>
+    s.toLowerCase()
+     .replace(/[^\w\s]/g, ' ')
+     .split(/\s+/)
+     .filter(w => w.length > 3);
+
+  const wordsA = new Set(normalize(a));
+  const wordsB = new Set(normalize(b));
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+
+  let overlap = 0;
+  for (const w of wordsA) {
+    if (wordsB.has(w)) overlap++;
+  }
+
+  // Jaccard similarity
+  const union = new Set([...wordsA, ...wordsB]).size;
+  return union > 0 ? overlap / union : 0;
+}
+
+const SIMILARITY_THRESHOLD = 0.55; // sections above this are considered duplicates
+
+// ── Compile ──────────────────────────────────────────────────────────────────
+
 export async function compileBestElements(
   elements: BestElement[],
   versions: GeneratedContentItem[],
@@ -279,47 +311,98 @@ export async function compileBestElements(
   const language = formState?.language || 'English';
   const tone = formState?.tone || 'Professional';
 
-  // ── STEP 1: Convert all versions to clean markdown ───────────────────────
+  // ── STEP 1: Convert all versions to clean markdown ──────────────────────
   const versionMarkdowns: Map<string, string> = new Map();
   for (const v of versions) {
     versionMarkdowns.set(v.id, contentToMarkdown(v.content));
   }
 
-  // ── STEP 2: Extract matching section for each element ────────────────────
-  const extractedBlocks: Array<{
+  // ── STEP 2: Extract the best matching section for each element ──────────
+  interface ExtractedBlock {
     dimension: string;
     block: string;
     versionName: string;
-  }> = [];
+    versionId: string;
+  }
+
+  const candidateBlocks: ExtractedBlock[] = [];
 
   for (const el of elements) {
     const markdown = versionMarkdowns.get(el.versionId);
     if (!markdown) continue;
 
     const section = extractMatchingSection(markdown, el.excerpt);
-    extractedBlocks.push({
+    candidateBlocks.push({
       dimension: el.dimension,
       block: section,
       versionName: el.versionName,
+      versionId: el.versionId,
     });
   }
 
-  if (extractedBlocks.length === 0) {
+  if (candidateBlocks.length === 0) {
     throw new Error('Could not extract any sections from source versions.');
   }
 
-  // ── STEP 3: Generate transitions between sections ────────────────────────
-  let transitions: string[] = new Array(extractedBlocks.length).fill('');
+  // ── STEP 3: Deduplicate — remove sections too similar to earlier ones ───
+  // Keep the first occurrence of each unique section.
+  // For duplicates, try to find a different section from the same version,
+  // or skip entirely if nothing unique exists.
+  const uniqueBlocks: ExtractedBlock[] = [];
+
+  for (const candidate of candidateBlocks) {
+    // Check if this block is too similar to any already-accepted block
+    const isDuplicate = uniqueBlocks.some(accepted => {
+      const similarity = textSimilarity(candidate.block, accepted.block);
+      return similarity >= SIMILARITY_THRESHOLD;
+    });
+
+    if (!isDuplicate) {
+      uniqueBlocks.push(candidate);
+      continue;
+    }
+
+    // It's a duplicate — try to find a different section from the same source version
+    const markdown = versionMarkdowns.get(candidate.versionId);
+    if (!markdown) continue;
+
+    const allSections = splitIntoSections(markdown);
+
+    // Find a section from this version that isn't similar to any accepted block
+    const alternativeSection = allSections.find(section => {
+      // Must not be similar to the matched section (already used)
+      if (textSimilarity(section, candidate.block) >= SIMILARITY_THRESHOLD) return false;
+      // Must not be similar to any already-accepted block
+      return !uniqueBlocks.some(accepted =>
+        textSimilarity(section, accepted.block) >= SIMILARITY_THRESHOLD
+      );
+    });
+
+    if (alternativeSection && alternativeSection.trim().length > 50) {
+      uniqueBlocks.push({
+        ...candidate,
+        block: alternativeSection,
+      });
+    }
+    // If no alternative found, skip this element entirely (better than repetition)
+  }
+
+  if (uniqueBlocks.length === 0) {
+    throw new Error('All sections were duplicates — versions are too similar to compile meaningfully.');
+  }
+
+  // ── STEP 4: Generate short transitions between unique blocks ────────────
+  let transitions: string[] = new Array(uniqueBlocks.length).fill('');
 
   try {
     const systemPrompt = `You write SHORT transition sentences between marketing copy sections. Max 15 words each, in ${language}. Return ONLY valid JSON.`;
 
-    const userPrompt = `Write a transition sentence (max 15 words, ${language}, ${tone} tone) to place between each pair of consecutive sections. Return "" if no transition is needed (sections flow naturally).
+    const userPrompt = `Write a brief transition sentence (max 15 words, ${language}, ${tone} tone) between each consecutive pair of sections. Return "" if sections flow naturally without a transition.
 
-Sections in order:
-${extractedBlocks.map((b, i) => `[${i}] ${b.dimension}: "${b.block.slice(0, 120).replace(/\n/g, ' ')}…"`).join('\n')}
+Sections:
+${uniqueBlocks.map((b, i) => `[${i}] ${b.dimension}: "${b.block.slice(0, 120).replace(/\n/g, ' ')}…"`).join('\n')}
 
-Return JSON: { "transitions": ["after block 0", "after block 1", "after block 2", "after block 3", "after block 4"] }
+Return JSON: { "transitions": ["after 0", "after 1", "after 2", "after 3", "after 4"] }
 Return ONLY JSON.`;
 
     const data = await makeApiRequestWithFallback(
@@ -341,12 +424,12 @@ Return ONLY JSON.`;
     // Non-critical — proceed without transitions
   }
 
-  // ── STEP 4: Assemble final text ──────────────────────────────────────────
+  // ── STEP 5: Assemble final text ─────────────────────────────────────────
   const parts: string[] = [];
-  for (let i = 0; i < extractedBlocks.length; i++) {
-    parts.push(extractedBlocks[i].block);
+  for (let i = 0; i < uniqueBlocks.length; i++) {
+    parts.push(uniqueBlocks[i].block);
     const transition = transitions[i]?.trim();
-    if (transition && i < extractedBlocks.length - 1) {
+    if (transition && i < uniqueBlocks.length - 1) {
       parts.push(transition);
     }
   }
