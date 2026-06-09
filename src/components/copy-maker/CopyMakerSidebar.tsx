@@ -1508,9 +1508,6 @@ const CopyMakerSidebar: React.FC<CopyMakerSidebarProps> = ({
                 <Sparkles size={10} className={isGeneratingBestElements ? 'animate-pulse' : ''} />
                 {isGeneratingBestElements ? 'Analyzing…' : 'Best Elements Summary'}
               </SidebarBtn>
-              <p className="text-[8px] text-gray-400 dark:text-gray-600 px-1 leading-snug">
-                Shows the strongest headline, CTA, testimonials, and more — from each version.
-              </p>
               {isGeneratingBestElements && ReactDOM.createPortal(
                 <ProcessingModal
                   isOpen={isGeneratingBestElements}
