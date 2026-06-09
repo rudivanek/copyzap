@@ -50,6 +50,11 @@ Deno.serve(async (req: Request) => {
     // ============================================
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+// Log details server-side only; never return internal error info to the client
+      console.error('Access check failed (no user data):', {
+        userId: user.id,
+        errorCode: accessError?.code,
+      });
       return new Response(
         JSON.stringify({ error: 'Access denied: your subscription has expired or you have consumed all your available credits. Please update your plan.' }),
         {
