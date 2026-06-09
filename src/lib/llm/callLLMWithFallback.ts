@@ -234,7 +234,7 @@ async function callViaSupabaseEdgeFunction(params: {
 /**
  * Track token usage via Supabase edge function
  */
-async function trackTokenUsage(params: {
+async function trackTokenUsage(_params: {
   userEmail: string;
   modelUsed: string;
   provider: string;
@@ -245,40 +245,6 @@ async function trackTokenUsage(params: {
   };
   featureName: string;
 }): Promise<void> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('[Token Tracking] Supabase not configured, skipping tracking');
-    return;
-  }
-
-  const { supabase } = await import('../../services/supabaseClient');
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  const apiUrl = `${supabaseUrl}/functions/v1/track-tokens`;
-
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session?.access_token || supabaseAnonKey}`,
-    },
-    body: JSON.stringify({
-      user_email: params.userEmail,
-      model_used: params.modelUsed,
-      provider: params.provider,
-      input_tokens: params.usage.promptTokens,
-      output_tokens: params.usage.completionTokens,
-      total_tokens: params.usage.totalTokens,
-      operation_type: params.featureName,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[Token Tracking] Error: ${errorText}`);
-  }
+  // Recording is now handled server-side in the ai-completion edge function.
+  return;
 }

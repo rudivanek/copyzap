@@ -220,31 +220,6 @@ const WizardStep: React.FC<WizardStepProps> = ({
       const content = data.choices?.[0]?.message?.content || '';
 
       if (content.trim()) {
-        // Track token usage
-        const tokenUsage = data.usage?.total_tokens || 0;
-        if (tokenUsage > 0) {
-          try {
-            await fetch(`${supabaseUrl}/functions/v1/track-tokens`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({
-                userId: currentUser.id,
-                userEmail: currentUser.email,
-                tokensUsed: tokenUsage,
-                modelUsed: data.model_used || selectedModel,
-                operationLabel: `Wizard ${fieldType} Suggestion`,
-                sessionId: sessionId
-              }),
-            });
-          } catch (trackError) {
-            console.error('Failed to track tokens:', trackError);
-            // Don't fail the operation if token tracking fails
-          }
-        }
-
         // Update the specific field
         updateAnswer(fieldType, content.trim());
         toast.success(`Suggestion generated for ${fieldType === 'targetAudience' ? 'target audience' : 'pain points'}!`);
