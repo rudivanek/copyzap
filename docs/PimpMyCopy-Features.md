@@ -1,7 +1,7 @@
 # PimpMyCopy / CopyZap — Feature Documentation
 
 Version: 1.0
-Last Updated: 2026-06-09T12:00:00Z
+Last Updated: 2026-06-09T13:00:00Z
 
 ---
 
@@ -12,6 +12,9 @@ Last Updated: 2026-06-09T12:00:00Z
 **Changes:**
 - Description paragraph font size reduced from `text-[9px]` to `text-[8px]` for visual tightness
 - Added `ProcessingModal` portal (via `ReactDOM.createPortal`) that renders over the full viewport while `isGeneratingBestElements` is true, providing clear loading feedback during Best Elements analysis. Uses the same portal pattern as other modals in the sidebar. No new imports were required.
+
+**Completion sound:**
+`handleGenerateBestElements` in `CopyMakerTab.tsx` now calls `playSuccessSound()` (from `src/utils/soundEffects.ts`) immediately after the success toast, matching the identical call used in `useGeneration.ts` after main copy generation. Import added to `CopyMakerTab.tsx`.
 
 ---
 

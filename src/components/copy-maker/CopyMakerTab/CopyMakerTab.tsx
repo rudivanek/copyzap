@@ -52,6 +52,7 @@ import { getSectionsToExpand } from '../../../utils/templateLoader';
 import { FormState, User, GeneratedContentItem, GeneratedContentItemType, Model, SavedOutput, ScoringContext } from '../../../types';
 import { calculateTargetWordCount } from '../../../services/api/utils';
 import { hasAnyPopulatedFields } from '../../../utils/formUtils';
+import { playSuccessSound } from '../../../utils/soundEffects';
 import { generateBlendedCopy } from '../../../services/api/blendedCopy';
 import { v4 as uuidv4 } from 'uuid';
 import { validateApiKey, getAvailableModels, getModelLabel } from '../../../services/api/modelValidation';
@@ -727,6 +728,7 @@ const CopyMakerTab: React.FC<CopyMakerTabProps> = ({
       }));
       addProgressMessage('Best Elements Summary ready!');
       toast.success('Best Elements Summary generated!');
+      playSuccessSound();
       setTimeout(() => {
         const el = document.getElementById('best-elements-summary');
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
