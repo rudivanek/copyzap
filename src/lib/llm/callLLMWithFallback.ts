@@ -1,17 +1,13 @@
 /**
  * Centralized LLM API caller with automatic fallback chain
  *
- * Handles:
- * - Engine-based fallback (Claude -> OpenAI -> DeepSeek, etc.)
- * - Retriable error detection
- * - Token tracking
- * - Unified error handling
+ * All calls route through the Supabase `ai-completion` edge function.
+ * Provider API keys are NEVER used in the browser.
  */
 
 import { AiEngine } from '../../types';
 import {
   getFallbackChain,
-  getProviderApiConfig,
   isRetriableError,
   type ModelConfig,
 } from './modelRegistry';
@@ -130,7 +126,7 @@ export async function callLLMWithFallback(
 }
 
 /**
- * Call a specific model (no fallback)
+ * Call a specific model (no fallback) via the Supabase edge function only.
  */
 async function callModel(
   modelConfig: ModelConfig,
@@ -144,29 +140,23 @@ async function callModel(
   const { provider, modelId } = modelConfig;
   const { messages, temperature, maxTokens, responseFormat } = callOptions;
 
-  // Check if Supabase edge function is available
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (supabaseUrl && supabaseAnonKey) {
-    // Use Supabase edge function for API calls
-    return await callViaSupabaseEdgeFunction({
-      provider,
-      modelId,
-      messages,
-      temperature,
-      maxTokens,
-      responseFormat,
-    });
-  } else {
-    // Direct API call (fallback for local development without Supabase)
-    return await callDirectAPI(modelConfig, {
-      messages,
-      temperature,
-      maxTokens,
-      responseFormat,
-    });
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      'Supabase is not configured. All LLM calls require the Supabase ai-completion edge function.'
+    );
   }
+
+  return await callViaSupabaseEdgeFunction({
+    provider,
+    modelId,
+    messages,
+    temperature,
+    maxTokens,
+    responseFormat,
+  });
 }
 
 /**
@@ -228,85 +218,6 @@ async function callViaSupabaseEdgeFunction(params: {
     };
   } else {
     // OpenAI format
-    return {
-      content: data.choices?.[0]?.message?.content || '',
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-            totalTokens: data.usage.total_tokens,
-          }
-        : undefined,
-    };
-  }
-}
-
-/**
- * Direct API call (fallback for local dev without Supabase)
- */
-async function callDirectAPI(
-  modelConfig: ModelConfig,
-  callOptions: {
-    messages: { role: string; content: string }[];
-    temperature: number;
-    maxTokens: number;
-    responseFormat?: { type: string };
-  }
-): Promise<{ content: string; usage?: any }> {
-  const { provider, modelId } = modelConfig;
-  const { messages, temperature, maxTokens, responseFormat } = callOptions;
-
-  const apiConfig = getProviderApiConfig(provider);
-
-  if (provider === 'anthropic') {
-    // Claude API format
-    const response = await fetch(`${apiConfig.baseUrl}/messages`, {
-      method: 'POST',
-      headers: apiConfig.headers,
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Claude API error (${response.status}): ${errorText}`);
-    }
-
-    const data = await response.json();
-    return {
-      content: data.content?.[0]?.text || '',
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.input_tokens,
-            completionTokens: data.usage.output_tokens,
-            totalTokens: data.usage.input_tokens + data.usage.output_tokens,
-          }
-        : undefined,
-    };
-  } else {
-    // OpenAI-compatible format (OpenAI, DeepSeek)
-    const response = await fetch(`${apiConfig.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: apiConfig.headers,
-      body: JSON.stringify({
-        model: modelId,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        ...(responseFormat ? { response_format: responseFormat } : {}),
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`API error (${response.status}): ${errorText}`);
-    }
-
-    const data = await response.json();
     return {
       content: data.choices?.[0]?.message?.content || '',
       usage: data.usage
