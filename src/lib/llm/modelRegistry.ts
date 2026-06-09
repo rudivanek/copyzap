@@ -1,11 +1,9 @@
 /**
  * Canonical LLM Model Registry for CopyZap
  *
- * This registry defines:
- * - Available AI engines exposed to users (Claude, OpenAI)
- * - Internal model IDs and provider configurations
- * - Fallback chains for reliability
- * - Model presets (temperature, top_p, max_tokens)
+ * SECURITY NOTE: Provider API keys live ONLY in the Supabase `ai-completion`
+ * edge function (server-side). They are NEVER read or referenced in the browser.
+ * Do not reintroduce any import.meta.env.VITE_*_API_KEY references here.
  *
  * DeepSeek is an internal fallback only - never shown in UI.
  */
@@ -168,19 +166,14 @@ export function migrateModelToEngine(legacyModel: string): AiEngine {
 }
 
 /**
- * Check if a provider is available (API key exists)
+ * Provider availability.
+ *
+ * Keys live server-side in the edge function, so the browser cannot (and must
+ * not) check for them. We assume providers are available; if a provider is
+ * actually misconfigured server-side, the edge function returns a clear error.
  */
-export function isProviderAvailable(provider: Provider): boolean {
-  switch (provider) {
-    case 'anthropic':
-      return !!import.meta.env.VITE_ANTHROPIC_API_KEY;
-    case 'openai':
-      return !!import.meta.env.VITE_OPENAI_API_KEY;
-    case 'deepseek':
-      return !!import.meta.env.VITE_DEEPSEEK_API_KEY;
-    default:
-      return false;
-  }
+export function isProviderAvailable(_provider: Provider): boolean {
+  return true;
 }
 
 /**
@@ -192,63 +185,20 @@ export function isEngineAvailable(engine: AiEngine): boolean {
 }
 
 /**
- * Get API configuration for a provider
+ * Deprecated: direct client-side API config.
+ *
+ * Kept only so any leftover importers don't break at build time. It no longer
+ * references any API keys and will throw if called, because all LLM calls must
+ * go through the Supabase `ai-completion` edge function.
  */
-export function getProviderApiConfig(provider: Provider): {
+export function getProviderApiConfig(_provider: Provider): {
   apiKey: string;
   baseUrl: string;
   headers: HeadersInit;
 } {
-  switch (provider) {
-    case 'anthropic': {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        throw new Error('Claude API key not available. Please add VITE_ANTHROPIC_API_KEY to your .env file.');
-      }
-      return {
-        apiKey,
-        baseUrl: 'https://api.anthropic.com/v1',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-      };
-    }
-
-    case 'openai': {
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error('OpenAI API key not available. Please add VITE_OPENAI_API_KEY to your .env file.');
-      }
-      return {
-        apiKey,
-        baseUrl: 'https://api.openai.com/v1',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-      };
-    }
-
-    case 'deepseek': {
-      const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
-      if (!apiKey) {
-        throw new Error('DeepSeek API key not available. Please add VITE_DEEPSEEK_API_KEY to your .env file.');
-      }
-      return {
-        apiKey,
-        baseUrl: 'https://api.deepseek.com/v1',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-      };
-    }
-
-    default:
-      throw new Error(`Unknown provider: ${provider}`);
-  }
+  throw new Error(
+    'Direct client-side LLM calls are disabled. All requests must go through the Supabase ai-completion edge function.'
+  );
 }
 
 /**
