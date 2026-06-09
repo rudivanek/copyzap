@@ -9,20 +9,17 @@ Last Updated: 2026-06-09T00:00:00Z
 
 **Purpose:** Eliminate a security vulnerability where clients could supply arbitrary `cost_usd` and `user_id` to the `track-tokens` edge function, and eliminate double-counting where both client and server recorded rows for the same LLM call.
 
-**What changed:**
+**Root cause of double-counting:** `trackTokenUsage` in `tokenTracking.ts` had an early-return only when `sessionId` was absent. When `sessionId` was present (all service files pass one), the full 200-line body ran — computing `cost_source='db_pricing'` via `calculateCostFromDbPricing` and posting to the `track-tokens` edge function. The previous attempt to no-op this function only added the early return at the `!sessionId` branch, leaving the rest of the body live.
 
-### Step 1 — Server-side recording added to `ai-completion` edge function
-After every successful LLM call, `supabase/functions/ai-completion/index.ts` now inserts a row directly into `pmc_user_tokens_used` using the `user.id` extracted from the validated JWT (not from request body). Cost is calculated server-side using `get_active_model_pricing` RPC and `llm_billing_rules`. `billable_units` always use `.maybeSingle()` with a fallback rule `{ rule_name: 'default_fallback', cost_multiplier: 1.30, usd_per_unit: 0.01, min_units_per_call: 1 }` so the value is never 0 when a real cost was computed. Rows recorded this way carry `cost_source='server'`.
+**Fix applied:**
 
-### Step 2 — All client-side tracking paths made no-ops
+`src/services/api/tokenTracking.ts` — Replaced the entire `trackTokenUsage` function body (lines 55–260) with a single `return;`. The function signature is preserved for call-site compatibility. All 23+ callers across service files now invoke a guaranteed no-op regardless of whether `sessionId` is provided.
 
-**`src/services/api/tokenTracking.ts`** — `trackTokenUsage` function body replaced with `return;`. This disables the 23+ call-sites across all service files (`absoluteScoring`, `alternativeCopy`, `blendedCopy`, `comprehensiveScoring`, `contentModification`, `contentRefinement`, `contentScoring`, `copyGeneration`, `geoGeneration`, `geoScoring`, `humanizedCopy`, `modificationSuggestions`, `performanceBoost`, `promptEvaluation`, `seoGeneration`, `suggestions`, `templateSuggestions`, `versionDeepAnalysis`, `voiceStyles`) plus `CopySnap.tsx`, `QuickPolishPage.tsx`, and `enhancedPipeline.ts`.
+Additional no-ops applied in the same session:
+- `src/lib/llm/callLLMWithFallback.ts` — private `trackTokenUsage` helper body replaced with `return;`
+- `src/components/wizard/WizardStep.tsx` — direct `fetch` to `track-tokens` in `handleGetFieldSuggestion` removed
 
-**`src/lib/llm/callLLMWithFallback.ts`** — Private `trackTokenUsage` helper (separate from the one in `tokenTracking.ts`) also replaced with `return;`. This stops tracking calls routed through the `callLLMWithFallback` path.
-
-**`src/components/wizard/WizardStep.tsx`** — Direct `fetch` to `track-tokens` edge function removed from `handleGetFieldSuggestion`. This was a standalone fetch that bypassed `trackTokenUsage` entirely.
-
-**Result:** All LLM usage is now recorded exactly once, server-side, with `cost_usd` and `user_id` derived from trusted server state only. No client-supplied cost or user identity is accepted.
+**Result:** No client-side code calls `track-tokens` or inserts into `pmc_user_tokens_used` under any condition. All usage recording is handled exclusively server-side in the `ai-completion` edge function.
 
 ---
 
