@@ -19,8 +19,6 @@ Deno.serve(async (req: Request) => {
     let requestBody;
     try {
       const bodyText = await req.text();
-      console.log('Raw request body length:', bodyText.length);
-      console.log('First 500 chars of request:', bodyText.substring(0, 500));
       requestBody = JSON.parse(bodyText);
     } catch (parseError) {
       console.error('Failed to parse request body:', parseError);
