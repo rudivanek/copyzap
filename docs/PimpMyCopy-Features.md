@@ -1,7 +1,17 @@
 # PimpMyCopy / CopyZap — Feature Documentation
 
 Version: 1.0
-Last Updated: 2026-06-09T00:00:00Z
+Last Updated: 2026-06-09T12:00:00Z
+
+---
+
+## Best Elements Summary — UX Polish (2026-06-09)
+
+**Location:** `src/components/copy-maker/CopyMakerSidebar.tsx` — Section 2D block
+
+**Changes:**
+- Description paragraph font size reduced from `text-[9px]` to `text-[8px]` for visual tightness
+- Added `ProcessingModal` portal (via `ReactDOM.createPortal`) that renders over the full viewport while `isGeneratingBestElements` is true, providing clear loading feedback during Best Elements analysis. Uses the same portal pattern as other modals in the sidebar. No new imports were required.
 
 ---
 
