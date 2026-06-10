@@ -114,11 +114,7 @@ ${detail.metrics ? `Metrics:
   const sourceVersionNames = finalTopVersions.map(({ detail }) => detail.versionTitle);
 
   const firstVersionContent = finalTopVersions[0].version!.content;
-  const contentAsString = typeof firstVersionContent === 'string'
-    ? firstVersionContent
-    : Array.isArray(firstVersionContent)
-    ? firstVersionContent.join(' ')
-    : JSON.stringify(firstVersionContent);
+  const contentAsString = contentToText(firstVersionContent);
 
   // Source of truth for language is formState.language — the same signal every other
   // generation service uses. Character-based detection is only a fallback for the rare
