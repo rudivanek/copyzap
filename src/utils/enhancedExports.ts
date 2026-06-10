@@ -2857,7 +2857,7 @@ export const exportAsFormattedHtml = (
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Copy Report — ${formState.projectDescription || 'CopyZap'}</title>
+  <title>Copy Report — ${escapeHtml(formState.projectDescription || 'CopyZap')}</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
