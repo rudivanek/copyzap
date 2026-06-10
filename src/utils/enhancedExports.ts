@@ -3037,7 +3037,7 @@ export const exportAsFormattedHtml = (
     }
     if (formState.targetAudience) htmlContent += `  <div data-context-field="target-audience">${escapeHtml(formState.targetAudience)}</div>\n`;
     if (formState.keyMessage) htmlContent += `  <div data-context-field="key-message">${escapeHtml(formState.keyMessage)}</div>\n`;
-    if (formState.callToAction) htmlContent += `  <div data-context-field="call-to-action">${formState.callToAction}</div>\n`;
+    if (formState.callToAction) htmlContent += `  <div data-context-field="call-to-action">${escapeHtml(formState.callToAction)}</div>\n`;
     if (formState.desiredEmotion) htmlContent += `  <div data-context-field="desired-emotion">${formState.desiredEmotion}</div>\n`;
     if (formState.brandValues) htmlContent += `  <div data-context-field="brand-values">${formState.brandValues}</div>\n`;
     htmlContent += '</section>\n\n';
