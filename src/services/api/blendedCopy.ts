@@ -1,3 +1,4 @@
+import { contentToText } from './contentText';
 import { GeneratedContentItem, User } from '../../types';
 import { trackTokenUsage, extractTokenBreakdown } from './tokenTracking';
 import { makeApiRequestWithFallback } from './utils';
