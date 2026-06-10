@@ -2939,7 +2939,7 @@ export const exportAsFormattedHtml = (
       // Use the raw LLM score (winnerRow.score) — it's the primary ranking signal and matches
       // what the user sees in the rankings table. finalScore can be dragged lower by heuristics
       // that are unreliable for blended/structured content.
-      const bannerScore = (winnerRow as any).score ?? winnerRow.finalScore;
+      const bannerScore = winnerRow.finalScore ?? (winnerRow as any).score;
       htmlContent += `<div style="background:#fff7ed;border-left:4px solid #f97316;padding:14px 20px;border-radius:0 6px 6px 0;font-size:14px;font-weight:600;color:#9a3412;margin:0 0 40px 0;">&#9733;&nbsp; Best performing version: ${winnerLabel} &mdash; Score: ${bannerScore}/100</div>\n`;
     }
 
