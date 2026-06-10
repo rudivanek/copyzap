@@ -3035,8 +3035,8 @@ export const exportAsFormattedHtml = (
       const wordCountText = formState.wordCount === 'Custom' ? `${formState.wordCount} (${formState.customWordCount})` : formState.wordCount;
       htmlContent += `  <div data-context-field="word-count">${wordCountText}</div>\n`;
     }
-    if (formState.targetAudience) htmlContent += `  <div data-context-field="target-audience">${formState.targetAudience}</div>\n`;
-    if (formState.keyMessage) htmlContent += `  <div data-context-field="key-message">${formState.keyMessage}</div>\n`;
+    if (formState.targetAudience) htmlContent += `  <div data-context-field="target-audience">${escapeHtml(formState.targetAudience)}</div>\n`;
+    if (formState.keyMessage) htmlContent += `  <div data-context-field="key-message">${escapeHtml(formState.keyMessage)}</div>\n`;
     if (formState.callToAction) htmlContent += `  <div data-context-field="call-to-action">${formState.callToAction}</div>\n`;
     if (formState.desiredEmotion) htmlContent += `  <div data-context-field="desired-emotion">${formState.desiredEmotion}</div>\n`;
     if (formState.brandValues) htmlContent += `  <div data-context-field="brand-values">${formState.brandValues}</div>\n`;
