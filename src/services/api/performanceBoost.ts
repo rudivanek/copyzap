@@ -1,5 +1,6 @@
 import { FormState, User } from '../../types';
-import { makeApiRequestWithFallback, storePrompts, calculateTargetWordCount, extractWordCount, cleanJsonResponse } from './utils';
+import { makeApiRequestWithFallback, storePrompts, calculateTargetWordCount, extractWordCount } from './utils';
+import { contentToText, stripToMarkdown } from './contentText';
 import { trackTokenUsage, extractTokenBreakdown } from './tokenTracking';
 import type { VersionScoreResult } from './comprehensiveScoring';
 
