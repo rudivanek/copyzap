@@ -2817,9 +2817,7 @@ export const exportAsFormattedHtml = (
   loadingVersionIds?: Set<string>
 ): void => {
   try {
-    console.log('[HTML-EXPORT] versionDeepAnalysis keys:', Object.keys(versionDeepAnalysis || {}));
-    console.log('[HTML-EXPORT] comparisonResult.rows[0]:', comparisonResult?.rows?.[0]);
-    console.log('[HTML-EXPORT-FLAGS-CHECK]', comparisonResult?.rows?.[0]?.verificationFlags);
+    
     let htmlContent = '';
 
     // Collect non-comparison cards up-front for TOC and body
@@ -2851,6 +2849,7 @@ export const exportAsFormattedHtml = (
     const targetWordCount = calculateTargetWordCount(formState).target;
     const totalVariants = contentCards.length;
     const lang = formState.language || 'English';
+    const htmlLangCode = ({ english: 'en', spanish: 'es', french: 'fr', german: 'de', portuguese: 'pt', italian: 'it', dutch: 'nl' } as Record<string, string>)[lang.trim().toLowerCase()] || 'en';
 
     // HTML document start with premium styling
     htmlContent += `<!DOCTYPE html>
