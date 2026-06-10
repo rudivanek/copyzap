@@ -1,8 +1,8 @@
-import { contentToText } from './contentText';
 import { GeneratedContentItem, User } from '../../types';
 import { trackTokenUsage, extractTokenBreakdown } from './tokenTracking';
 import { makeApiRequestWithFallback } from './utils';
 import { getPrimaryModel, DEFAULT_ENGINE } from '../../lib/llm/modelRegistry';
+import { contentToText } from './contentText';
 
 export interface BlendedCopyResult {
   content: string;
@@ -116,14 +116,10 @@ ${detail.metrics ? `Metrics:
   const firstVersionContent = finalTopVersions[0].version!.content;
   const contentAsString = contentToText(firstVersionContent);
 
-  // Source of truth for language is formState.language — the same signal every other
-  // generation service uses. Character-based detection is only a fallback for the rare
-  // case where formState.language is missing. (Previously this path ignored
-  // formState.language entirely and guessed Spanish-vs-English from accented chars,
-  // with a one-off hardcoded special case for "german".)
+  // Language source of truth is formState.language (same as every other service);
+  // character detection is only a fallback when it is missing.
   const detectedLanguageFallback = /[áéíóúñ¿¡]/i.test(contentAsString) ? 'Spanish' : 'English';
   const language = (formState?.language && String(formState.language).trim()) || detectedLanguageFallback;
-
   const referenceWordCount = contentAsString.trim().split(/\s+/).length;
   const targetWordCount = formState?.customWordCount || referenceWordCount;
 
@@ -170,10 +166,6 @@ Respond ONLY with the blended copy. No explanations.`;
       }
     ];
 
-    // Honor the user's selected model first, then the form's model, then the engine's
-    // primary model, and only as a last resort the app default engine's primary model.
-    // (Previously this fell back to a hardcoded 'gpt-4o', which silently overrode the
-    // user's chosen engine when the upstream values were undefined.)
     const engineModel = formState?.aiEngine
       ? getPrimaryModel(formState.aiEngine).modelId
       : undefined;
