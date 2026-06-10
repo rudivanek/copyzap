@@ -674,7 +674,7 @@ export const generateFullHtmlExportForCard = (
   else if (scoreVal >= 70) scoreColor = '#d97706';
 
   // Section with page-break-before for print
-  html += `<section id="output-${card.id}" data-copy-id="${card.id}" data-copy-kind="${copyKind}" data-copy-label="${copyLabel}" style="page-break-before: always; margin-bottom: 0; padding-top: 16px;">\n`;
+  html += `<section id="output-${card.id}" data-copy-id="${card.id}" data-copy-kind="${copyKind}" data-copy-label="${escapeHtml(copyLabel)}" style="page-break-before: always; margin-bottom: 0; padding-top: 16px;">\n`;
 
   // Section header
   html += `<span style="display:inline-block;background:#374151;color:#ffffff;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;padding:2px 10px;border-radius:999px;margin-bottom:10px;">${variantTypeLabel}</span>\n`;
@@ -3077,7 +3077,7 @@ export const exportAsFormattedHtml = (
 
         const copyLabel = card.sourceDisplayName || card.type || `Version ${idx + 1}`;
 
-        htmlContent += `  <article data-copy-id="${card.id}" data-copy="generated-${idx + 1}" data-copy-kind="${copyKind}" data-copy-label="${copyLabel}">\n`;
+        htmlContent += `  <article data-copy-id="${card.id}" data-copy="generated-${idx + 1}" data-copy-kind="${copyKind}" data-copy-label="${escapeHtml(copyLabel)}">\n`;
         htmlContent += `    <h2>${copyLabel}</h2>\n`;
         htmlContent += '    <div data-copy-body="true" data-copy-normalized="true">\n';
 
