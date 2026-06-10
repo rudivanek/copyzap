@@ -1,7 +1,7 @@
 import { GeneratedContentItem, User } from '../../types';
 import { trackTokenUsage, extractTokenBreakdown } from './tokenTracking';
 import { makeApiRequestWithFallback } from './utils';
-import { getPrimaryModel } from '../../lib/llm/modelRegistry';
+import { getPrimaryModel, DEFAULT_ENGINE } from '../../lib/llm/modelRegistry';
 
 export interface BlendedCopyResult {
   content: string;
@@ -123,7 +123,14 @@ ${detail.metrics ? `Metrics:
     ? firstVersionContent.join(' ')
     : JSON.stringify(firstVersionContent);
 
-  const detectedLanguage = /[áéíóúñ¿¡]/i.test(contentAsString) ? 'Spanish' : 'English';
+  // Source of truth for language is formState.language — the same signal every other
+  // generation service uses. Character-based detection is only a fallback for the rare
+  // case where formState.language is missing. (Previously this path ignored
+  // formState.language entirely and guessed Spanish-vs-English from accented chars,
+  // with a one-off hardcoded special case for "german".)
+  const detectedLanguageFallback = /[áéíóúñ¿¡]/i.test(contentAsString) ? 'Spanish' : 'English';
+  const language = (formState?.language && String(formState.language).trim()) || detectedLanguageFallback;
+
   const referenceWordCount = contentAsString.trim().split(/\s+/).length;
   const targetWordCount = formState?.customWordCount || referenceWordCount;
 
@@ -151,7 +158,7 @@ Create a blended version that takes the best from each:
 - Maximum marketing effectiveness and conversion potential
 
 **Requirements:**
-- Write in ${detectedLanguage}${specialInstructions && specialInstructions.toLowerCase().includes('german') ? ' (unless special instructions specify otherwise)' : ''}
+- Write in ${language} (unless the special instructions above explicitly specify a different language)
 - Stay on the same topic and maintain the same brand voice
 - Create a TRUE synthesis, not just picking one version
 - Target word count: ~${targetWordCount} words (range: ${Math.round(targetWordCount * 0.85)}-${Math.round(targetWordCount * 1.15)})${specialInstructions && /\d+\s*words?/.test(specialInstructions.toLowerCase()) ? ' (special instructions may override)' : ''}
@@ -170,10 +177,14 @@ Respond ONLY with the blended copy. No explanations.`;
       }
     ];
 
+    // Honor the user's selected model first, then the form's model, then the engine's
+    // primary model, and only as a last resort the app default engine's primary model.
+    // (Previously this fell back to a hardcoded 'gpt-4o', which silently overrode the
+    // user's chosen engine when the upstream values were undefined.)
     const engineModel = formState?.aiEngine
       ? getPrimaryModel(formState.aiEngine).modelId
       : undefined;
-    const modelToUse = selectedModel || engineModel || 'gpt-4o';
+    const modelToUse = selectedModel || formState?.model || engineModel || getPrimaryModel(DEFAULT_ENGINE).modelId;
 
     const completion = await makeApiRequestWithFallback(
       modelToUse,
