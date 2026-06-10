@@ -4,19 +4,6 @@ import { contentToText, stripToMarkdown } from './contentText';
 import { trackTokenUsage, extractTokenBreakdown } from './tokenTracking';
 import type { VersionScoreResult } from './comprehensiveScoring';
 
-function contentToText(content: any): string {
-  if (typeof content === 'string') return content;
-  if (content && typeof content === 'object') {
-    if (content.headline) {
-      return `${content.headline}\n\n${(content.sections || []).map((s: any) =>
-        `${s.title}\n${s.content || (s.listItems || []).join('\n')}`
-      ).join('\n\n')}`;
-    }
-    if (content.content) return contentToText(content.content);
-  }
-  return JSON.stringify(content);
-}
-
 const DIMENSION_LABELS: Record<string, string> = {
   audienceToneAlignment: 'audience-tone alignment and cultural appropriateness',
   clarity: 'clarity, structure, and readability',
@@ -155,26 +142,7 @@ Deliver the boosted version now. Return ONLY the improved copy — no preamble, 
   let boostedContent: string = data.choices[0]?.message?.content;
   if (!boostedContent) throw new Error('No content returned from boost API');
 
-  boostedContent = boostedContent
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-
-  if (boostedContent.startsWith('{') && boostedContent.includes('"headline"')) {
-    try {
-      const parsed = JSON.parse(cleanJsonResponse(boostedContent));
-      let text = `# ${parsed.headline}\n\n`;
-      if (parsed.sections) {
-        text += parsed.sections.map((s: any) =>
-          `## ${s.title}\n\n${s.content}`
-        ).join('\n\n');
-      }
-      boostedContent = text;
-    } catch {
-      // leave as-is
-    }
-  }
+  boostedContent = stripToMarkdown(boostedContent);
 
   if (progressCallback) {
     progressCallback(`✓ Performance Boost complete (${extractWordCount(boostedContent)} words)`);
