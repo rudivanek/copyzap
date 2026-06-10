@@ -2927,7 +2927,7 @@ export const exportAsFormattedHtml = (
     // ── DOCUMENT HEADER ─────────────────────────────────────────────────────────
     htmlContent += '<div id="doc-header" style="text-align:left;padding-bottom:28px;margin-bottom:40px;">\n';
     htmlContent += '<p class="label" style="margin-bottom:10px;font-size:10px;letter-spacing:0.14em;color:#9ca3af;text-transform:uppercase;font-weight:600;">CopyZap &mdash; Copy Report</p>\n';
-    htmlContent += `<h1 style="font-size:30px;font-weight:800;color:#111827;margin-bottom:10px;letter-spacing:-0.01em;">${formState.projectDescription || 'Untitled Project'}</h1>\n`;
+    htmlContent += `<h1 style="font-size:30px;font-weight:800;color:#111827;margin-bottom:10px;letter-spacing:-0.01em;">${escapeHtml(formState.projectDescription || 'Untitled Project')}</h1>\n`;
     htmlContent += `<p style="font-size:13px;color:#6b7280;margin:0;">Generated: ${formatExportTimestamp()} &nbsp;&middot;&nbsp; ${totalVariants} variant${totalVariants !== 1 ? 's' : ''} evaluated &nbsp;&middot;&nbsp; Language: ${lang}</p>\n`;
     htmlContent += '<hr style="border:0;border-top:1px solid #e5e7eb;margin:20px 0 0;">\n';
     htmlContent += '</div>\n';
