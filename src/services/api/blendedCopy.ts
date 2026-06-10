@@ -89,11 +89,7 @@ export async function generateBlendedCopy(
   }
 
   const versionsText = finalTopVersions.map(({ detail, version }) => {
-    const versionContentString = typeof version!.content === 'string'
-      ? version!.content
-      : Array.isArray(version!.content)
-      ? version!.content.join('\n')
-      : JSON.stringify(version!.content, null, 2);
+    const versionContentString = contentToText(version!.content);
 
     return `
 **${detail.versionTitle}** (Score: ${detail.score}/100)
