@@ -680,7 +680,7 @@ export const generateFullHtmlExportForCard = (
   html += `<span style="display:inline-block;background:#374151;color:#ffffff;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;padding:2px 10px;border-radius:999px;margin-bottom:10px;">${variantTypeLabel}</span>\n`;
   html += '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;">\n';
   html += '<div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">\n';
-  html += `<h2 style="font-size:22px;font-weight:700;color:#111827;margin:0;">${copyLabel}</h2>\n`;
+  html += `<h2 style="font-size:22px;font-weight:700;color:#111827;margin:0;">${escapeHtml(copyLabel)}</h2>\n`;
   if (isWinner) {
     html += '<span style="color:#f97316;font-size:13px;font-weight:700;">&#9733; Winner</span>\n';
   }
@@ -3078,7 +3078,7 @@ export const exportAsFormattedHtml = (
         const copyLabel = card.sourceDisplayName || card.type || `Version ${idx + 1}`;
 
         htmlContent += `  <article data-copy-id="${card.id}" data-copy="generated-${idx + 1}" data-copy-kind="${copyKind}" data-copy-label="${escapeHtml(copyLabel)}">\n`;
-        htmlContent += `    <h2>${copyLabel}</h2>\n`;
+        htmlContent += `    <h2>${escapeHtml(copyLabel)}</h2>\n`;
         htmlContent += '    <div data-copy-body="true" data-copy-normalized="true">\n';
 
         // Extract and normalize content for consistent LLM evaluation
